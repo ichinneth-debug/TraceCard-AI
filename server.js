@@ -24,6 +24,12 @@ const PROVIDERS = [
     key: process.env.OPENROUTER_API_KEY?.trim(),
     model: process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free',
   },
+
+  {
+    id: 'openai',
+    key: process.env.OPENAI_API_KEY?.trim(),
+    model: process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini',
+  },
 ];
 
 function boundedInteger(name, fallback, minimum, maximum) {
@@ -117,6 +123,9 @@ function runQueue() {
       });
   }
 }
+
+// Verify excerpts against the PAGE N text sent in the request, where available.
+// This mirrors the browser's traceability check without logging any PDF contents.
 function quotedInSource(prompt, page, excerpt) {
   if (typeof prompt !== 'string') return true;
   const marker = /^PAGE (\d+):\s*/gm;
@@ -236,7 +245,7 @@ async function postJSON(provider, url, body, headers) {
       body: JSON.stringify(body),
       signal: controller.signal,
     });
-    // Read the response while the timeout is still active.
+
     const text = await response.text();
     let data;
     try { data = JSON.parse(text); } catch { data = {}; }
@@ -271,7 +280,7 @@ async function askGemini(provider, prompt, schema) {
       model: provider.model,
       input: prompt,
       generation_config: { thinking_level: 'low' },
-      // Gemini Interactions structured output setting is TOP LEVEL.
+
       response_format: { type: 'text', mime_type: 'application/json', schema },
     },
     { 'x-goog-api-key': provider.key },
@@ -279,11 +288,15 @@ async function askGemini(provider, prompt, schema) {
   return extractGeminiText(data);
 }
 
-// Groq and OpenRouter both accept OpenAI-compatible chat completion requests.
+
 async function askChatCompletion(provider, prompt, schema) {
-  const url = provider.id === 'groq'
-    ? 'https://api.groq.com/openai/v1/chat/completions'
-    : 'https://openrouter.ai/api/v1/chat/completions';
+  const urls = {
+    groq: 'https://api.groq.com/openai/v1/chat/completions',
+    openrouter: 'https://openrouter.ai/api/v1/chat/completions',
+    openai: 'https://api.openai.com/v1/chat/completions',
+  };
+  const url = urls[provider.id];
+  if (!url) throw new AIError('Unsupported chat completion provider.', 500);
   const jsonInstructions =
     'You generate accurate flashcards from user-supplied PDF text only. ' +
     'Return ONLY a valid JSON object with one "flashcards" array. ' +
@@ -304,15 +317,21 @@ async function askChatCompletion(provider, prompt, schema) {
   };
 
   if (provider.id === 'groq') {
-    // Strict JSON Schema support depends on the model; GPT-OSS 20B/120B are supported.
+
     const strictSupported = /^openai\/gpt-oss-(?:20b|120b)$/i.test(provider.model);
     body.response_format = strictSupported
       ? { type: 'json_schema', json_schema: { name: 'tracecard_flashcards', strict: true, schema } }
       : { type: 'json_object' };
+  } else if (provider.id === 'openai') {
+
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'tracecard_flashcards', strict: true, schema },
+    };
   } else if (provider.id === 'openrouter' &&
              process.env.OPENROUTER_STRUCTURED_OUTPUTS === 'true' &&
              provider.model !== 'openrouter/free') {
-    // Explicit opt-in: not all OpenRouter model/provider endpoints support schemas.
+
     body.response_format = {
       type: 'json_schema',
       json_schema: { name: 'tracecard_flashcards', strict: true, schema },
@@ -335,7 +354,7 @@ function recordFailure(provider, error) {
   else if ([400, 401, 402, 403, 404].includes(status)) cooldownMs = 120000;
   else if ([500, 502, 503, 504].includes(status)) cooldownMs = 10000;
   if (cooldownMs) cooldownUntil.set(provider.id, Date.now() + Math.min(cooldownMs, 300000));
-  // Do not log prompts, provider response bodies, or API keys.
+
   console.warn(`[TraceCard AI] ${provider.id} failed: ${status || 'network/format error'}`);
 }
 
@@ -355,7 +374,6 @@ async function generateFlashcards(prompt, requestedType = 'mcq') {
       return cards;
     } catch (error) {
       recordFailure(provider, error);
-      // Continue to next configured provider automatically.
     }
   }
   const configured = PROVIDERS.some(p => p.key);
@@ -403,12 +421,9 @@ async function handleGenerate(req, res) {
   }
 }
 
-// Keep the frontend's original URL working without editing index.html.
 app.post('/api/gemini', handleGenerate);
 app.post('/api/flashcards', handleGenerate);
 
-// Serve the current standalone frontend; do NOT expose .env, server.js,
-// package.json, node_modules, or other project files as public static files.
 app.get(['/', '/index.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
