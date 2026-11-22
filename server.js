@@ -4,7 +4,6 @@ require('dotenv').config();
 const express = require('express');
 const path = require('path');
 
-// Node.js 18+ required for the built-in fetch API.
 const app = express();
 app.disable('x-powered-by');
 
@@ -38,6 +37,44 @@ const MAX_QUEUE = boundedInteger('AI_QUEUE_LIMIT', 80, 1, 500);
 const MAX_QUEUE_WAIT_MS = boundedInteger('AI_QUEUE_WAIT_MS', 180000, 5000, 600000);
 const PROVIDER_TIMEOUT_MS = boundedInteger('AI_TIMEOUT_MS', 45000, 5000, 120000);
 const MAX_PROMPT_CHARS = boundedInteger('MAX_PROMPT_CHARS', 80000, 1000, 200000);
+
+const CARD_TYPES = new Set(['mcq', 'identification', 'enumeration', 'fillblank']);
+const FIELDS = ['type', 'question', 'answer', 'choices', 'page', 'source_excerpt'];
+function requestedCardType(prompt, suppliedSchema) {
+  const fromSchema = suppliedSchema?.properties?.flashcards?.items?.properties?.type?.enum;
+  if (Array.isArray(fromSchema) && fromSchema.length === 1 && CARD_TYPES.has(fromSchema[0])) {
+    return fromSchema[0];
+  }
+  const fromPrompt = String(prompt).match(/(?:^|\n)Type:\s*(mcq|identification|enumeration|fillblank)\b/i);
+  return fromPrompt ? fromPrompt[1].toLowerCase() : 'mcq';
+}
+function buildResponseSchema(type) {
+  if (!CARD_TYPES.has(type)) throw new AIError('Unsupported question type.', 400);
+  const answer = type === 'enumeration'
+    ? { type: 'array', items: { type: 'string' }, minItems: 2, maxItems: 5 }
+    : { type: 'string' };
+  const choices = type === 'mcq'
+    ? { type: 'array', items: { type: 'string' }, minItems: 4, maxItems: 4 }
+    : { type: 'array', items: { type: 'string' }, maxItems: 0 };
+  return {
+    type: 'object', additionalProperties: false,
+    properties: {
+      flashcards: {
+        type: 'array', items: {
+          type: 'object', additionalProperties: false,
+          properties: {
+            type: { type: 'string', enum: [type] },
+            question: { type: 'string' }, answer, choices,
+            page: { type: 'integer' }, source_excerpt: { type: 'string' },
+          },
+          required: FIELDS,
+        },
+      },
+    },
+    required: ['flashcards'],
+  };
+}
+
 
 const cooldownUntil = new Map();
 const queue = [];
@@ -80,66 +117,95 @@ function runQueue() {
       });
   }
 }
-
-// Accept either a JSON array or { flashcards: [...] } from AI providers,
-// but ALWAYS return a JSON array to the unchanged TraceCard frontend.
-function parseFlashcards(raw) {
-  if (typeof raw !== 'string' || !raw.trim()) {
-    throw new AIError('AI response contained no text.', 502);
+function quotedInSource(prompt, page, excerpt) {
+  if (typeof prompt !== 'string') return true;
+  const marker = /^PAGE (\d+):\s*/gm;
+  const spans = [...prompt.matchAll(marker)];
+  if (!spans.length) return true; // Legacy API calls without page-formatted source.
+  const normalize = value => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
+  for (let i = 0; i < spans.length; i++) {
+    if (Number(spans[i][1]) !== page) continue;
+    const start = spans[i].index + spans[i][0].length;
+    const end = i + 1 < spans.length ? spans[i + 1].index : prompt.length;
+    if (normalize(prompt.slice(start, end)).includes(normalize(excerpt))) return true;
   }
-  let text = raw.trim()
-    .replace(/^```(?:json)?\s*/i, '')
-    .replace(/```\s*$/, '')
-    .trim();
+  return false;
+}
 
-  let value;
-  try {
-    value = JSON.parse(text);
-  } catch {
-    // Some free models add a sentence around valid JSON.
-    const start = Math.min(...[text.indexOf('['), text.indexOf('{')].filter(i => i >= 0));
-    const end = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
-    if (!Number.isFinite(start) || end <= start) {
-      throw new AIError('Provider did not return valid flashcard JSON.', 502);
-    }
+function parseFlashcards(raw, requestedType = null, prompt = null) {
+  let value = raw;
+  if (typeof value === 'string') {
+    const text = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+    if (!text) throw new AIError('AI response contained no text.', 502);
     try {
-      value = JSON.parse(text.slice(start, end + 1));
+      value = JSON.parse(text);
     } catch {
-      throw new AIError('Provider did not return valid flashcard JSON.', 502);
+
+      const locations = [text.indexOf('['), text.indexOf('{')].filter(n => n >= 0);
+      const start = locations.length ? Math.min(...locations) : -1;
+      const end = Math.max(text.lastIndexOf(']'), text.lastIndexOf('}'));
+      if (start < 0 || end <= start) throw new AIError('Provider did not return valid flashcard JSON.', 502);
+      try { value = JSON.parse(text.slice(start, end + 1)); }
+      catch { throw new AIError('Provider did not return valid flashcard JSON.', 502); }
     }
   }
-
   const list = Array.isArray(value) ? value
     : Array.isArray(value?.flashcards) ? value.flashcards
     : Array.isArray(value?.cards) ? value.cards : null;
+  if (!list?.length) throw new AIError('Provider returned no flashcards.', 502);
 
-  if (!list || !list.length) {
-    throw new AIError('Provider returned no flashcards.', 502);
+  const reasons = { format: 0, type: 0, answer: 0, source: 0 };
+  const valid = [];
+  const aliases = {
+    multiple_choice: 'mcq', multiplechoice: 'mcq',
+    fill_in_the_blank: 'fillblank', fill_in_blank: 'fillblank',
+  };
+  for (const input of list) {
+    if (!input || typeof input !== 'object' || Array.isArray(input)) { reasons.format++; continue; }
+    const rawType = input.type || input.question_type || input.questionType || requestedType || 'mcq';
+    const type = aliases[rawType] || rawType;
+    if (!CARD_TYPES.has(type) || (requestedType && type !== requestedType)) { reasons.type++; continue; }
+    const question = String(input.question ?? input.q ?? '').trim();
+    const excerpt = String(input.source_excerpt ?? input.sourceExcerpt ?? input.excerpt ?? '').replace(/\s+/g,' ').trim();
+    const page = Number(input.page ?? input.page_number ?? input.pageNumber);
+    const choiceInput = input.choices ?? input.opts ?? input.options ?? [];
+    const choices = Array.isArray(choiceInput) ? choiceInput.map(x => String(x ?? '').trim()) : null;
+    if (!question || !Number.isInteger(page) || page < 1 || !Array.isArray(choices)) {
+      reasons.format++; continue;
+    }
+    if (excerpt.length < 10 || excerpt.length > 160 || !quotedInSource(prompt, page, excerpt)) {
+      reasons.source++; continue;
+    }
+    let answer = input.answer ?? input.a;
+    if (type === 'enumeration') {
+      if (typeof answer === 'string') answer = answer.split(/[;\n]+/).map(x => x.trim()).filter(Boolean);
+      if (!Array.isArray(answer)) { reasons.answer++; continue; }
+      answer = answer.map(x => String(x ?? '').trim()).filter(Boolean);
+      if (answer.length < 2 || answer.length > 5 || new Set(answer.map(x => x.toLowerCase())).size !== answer.length || choices.length) {
+        reasons.answer++; continue;
+      }
+    } else {
+      if (typeof answer !== 'string' || !answer.trim()) { reasons.answer++; continue; }
+      answer = answer.trim();
+      if (type === 'mcq') {
+        if (choices.length !== 4 || choices.some(x => !x) ||
+            new Set(choices.map(x => x.toLowerCase())).size !== 4 ||
+            !choices.some(x => x.toLowerCase() === answer.toLowerCase())) {
+          reasons.answer++; continue;
+        }
+      } else if (choices.length || (type === 'fillblank' &&
+                 ((question.match(/____/g) || []).length !== 1 || answer.length > 100))) {
+        reasons.answer++; continue;
+      }
+    }
+    valid.push({ type, question, answer, choices, page, source_excerpt: excerpt });
   }
-
-  // Prevent malformed AI data from breaking the existing UI.
-  const valid = list.filter(card => {
-    if (!card || typeof card !== 'object') return false;
-    const type = ['mcq','identification','enumeration','fillblank'].includes(card.type) ? card.type : 'mcq';
-    const question = String(card.question || '').trim();
-    const answer = Array.isArray(card.answer) ? card.answer.map(x => String(x).trim()).filter(Boolean) : String(card.answer || '').trim();
-    const excerpt = String(card.source_excerpt || '').trim();
-    const page = Number(card.page);
-    const choices = Array.isArray(card.choices) ? card.choices.map(x => String(x || '').trim()) : [];
-    if (!question || !answer || excerpt.length < 10 || excerpt.length > 160 || !Number.isInteger(page) || page < 1) return false;
-    if (type === 'fillblank') return (question.match(/____/g) || []).length === 1 && typeof answer === 'string' && answer.length <= 100;
-    if (type === 'identification') return typeof answer === 'string';
-    if (type === 'enumeration') return Array.isArray(answer) ? answer.length >= 2 : String(answer).split(/[;,\\n]/).filter(Boolean).length >= 2;
-    return typeof answer === 'string' && choices.length === 4 && choices.every(Boolean) &&
-      new Set(choices.map(x => x.toLowerCase())).size === 4 &&
-      choices.some(x => x.toLowerCase() === answer.toLowerCase());
-  });
-
-  if (!valid.length) {
-    throw new AIError('Provider returned flashcards that failed format validation.', 502);
+  // Only aggregate diagnostics: never print student PDF text, questions, or keys.
+  if (valid.length < list.length) {
+    console.warn(`[TraceCard AI] Provider validation: ${valid.length}/${list.length} accepted; rejected=${JSON.stringify(reasons)}`);
   }
-
-  return valid.map(card => ({...card, type: ['identification','enumeration'].includes(card.type) ? card.type : 'mcq', answer: Array.isArray(card.answer) ? card.answer.map(String).join('; ') : String(card.answer)}));
+  if (!valid.length) throw new AIError('Provider returned flashcards that failed format validation.', 502);
+  return valid;
 }
 
 function extractGeminiText(body) {
@@ -198,13 +264,15 @@ async function postJSON(provider, url, body, headers) {
   }
 }
 
-async function askGemini(provider, prompt) {
+async function askGemini(provider, prompt, schema) {
   const data = await postJSON(provider,
     'https://generativelanguage.googleapis.com/v1beta/interactions',
     {
       model: provider.model,
       input: prompt,
       generation_config: { thinking_level: 'low' },
+      // Gemini Interactions structured output setting is TOP LEVEL.
+      response_format: { type: 'text', mime_type: 'application/json', schema },
     },
     { 'x-goog-api-key': provider.key },
   );
@@ -212,39 +280,52 @@ async function askGemini(provider, prompt) {
 }
 
 // Groq and OpenRouter both accept OpenAI-compatible chat completion requests.
-async function askChatCompletion(provider, prompt) {
+async function askChatCompletion(provider, prompt, schema) {
   const url = provider.id === 'groq'
     ? 'https://api.groq.com/openai/v1/chat/completions'
     : 'https://openrouter.ai/api/v1/chat/completions';
-
   const jsonInstructions =
-    'You generate accurate source-linked flashcards of the question type requested by the user. ' +
-    'Return ONLY a valid JSON object with a "flashcards" array. ' +
-    'Each card must contain type, question, answer (string, or array for enumeration), choices (4 distinct strings for MCQ only), ' +
-    'page (integer), and source_excerpt (exact 10-160 character quote from the provided page). ' +
-    'For fillblank, use exactly one ____ placeholder in the question. Follow the user requirements and use only the provided source text.';
-
+    'You generate accurate flashcards from user-supplied PDF text only. ' +
+    'Return ONLY a valid JSON object with one "flashcards" array. ' +
+    'Preserve the requested question type. Each card needs type, question, answer, choices, page, source_excerpt. ' +
+    'For MCQ use exactly 4 distinct answer choices. For identification and fillblank use a string answer and empty choices. ' +
+    'For enumeration return an ARRAY of 2-5 strings and empty choices. ' +
+    'For fillblank use exactly one ____ in the question. ' +
+    'Copy source_excerpt exactly from the referenced page (10-160 characters). ' +
+    'Never invent source text. Output must match this JSON Schema: ' + JSON.stringify(schema);
   const body = {
     model: provider.model,
     messages: [
       { role: 'system', content: jsonInstructions },
-      { role: 'user', content: prompt + '\n\nReturn the results as {"flashcards":[...]}, not a bare array.' },
+      { role: 'user', content: prompt },
     ],
     temperature: 0.2,
     max_tokens: 8192,
   };
-  // Supported by the recommended GPT-OSS model on Groq.
-  // OpenRouter's free router selects models dynamically, so omit JSON mode there.
-  if (provider.id === 'groq') {
-    body.response_format = { type: 'json_object' };
-  }
 
+  if (provider.id === 'groq') {
+    // Strict JSON Schema support depends on the model; GPT-OSS 20B/120B are supported.
+    const strictSupported = /^openai\/gpt-oss-(?:20b|120b)$/i.test(provider.model);
+    body.response_format = strictSupported
+      ? { type: 'json_schema', json_schema: { name: 'tracecard_flashcards', strict: true, schema } }
+      : { type: 'json_object' };
+  } else if (provider.id === 'openrouter' &&
+             process.env.OPENROUTER_STRUCTURED_OUTPUTS === 'true' &&
+             provider.model !== 'openrouter/free') {
+    // Explicit opt-in: not all OpenRouter model/provider endpoints support schemas.
+    body.response_format = {
+      type: 'json_schema',
+      json_schema: { name: 'tracecard_flashcards', strict: true, schema },
+    };
+  }
   const data = await postJSON(provider, url, body, {
     Authorization: `Bearer ${provider.key}`,
     ...(provider.id === 'openrouter' ? { 'X-Title': 'TraceCard AI' } : {}),
   });
   const content = data?.choices?.[0]?.message?.content;
-  return typeof content === 'string' ? content : '';
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) return content.filter(x => x?.type === 'text').map(x => x.text).join('');
+  return '';
 }
 
 function recordFailure(provider, error) {
@@ -258,7 +339,8 @@ function recordFailure(provider, error) {
   console.warn(`[TraceCard AI] ${provider.id} failed: ${status || 'network/format error'}`);
 }
 
-async function generateFlashcards(prompt) {
+async function generateFlashcards(prompt, requestedType = 'mcq') {
+  const schema = buildResponseSchema(requestedType);
   let tried = 0;
   for (const provider of PROVIDERS) {
     if (!provider.key) continue;
@@ -266,10 +348,10 @@ async function generateFlashcards(prompt) {
     tried++;
     try {
       const raw = provider.id === 'gemini'
-        ? await askGemini(provider, prompt)
-        : await askChatCompletion(provider, prompt);
-      const cards = parseFlashcards(raw);
-      console.info(`[TraceCard AI] Generated ${cards.length} cards with ${provider.id}`);
+        ? await askGemini(provider, prompt, schema)
+        : await askChatCompletion(provider, prompt, schema);
+      const cards = parseFlashcards(raw, requestedType, prompt);
+      console.info(`[TraceCard AI] Generated ${cards.length} valid ${requestedType} cards with ${provider.id}`);
       return cards;
     } catch (error) {
       recordFailure(provider, error);
@@ -309,11 +391,13 @@ async function handleGenerate(req, res) {
     return res.status(413).json({ error: 'AI prompt is too long. Try fewer PDF pages.' });
   }
   try {
-    const cards = await queueTask(() => generateFlashcards(prompt.trim()));
+    const requestedType = requestedCardType(prompt, req.body?.responseSchema);
+    const cards = await queueTask(() => generateFlashcards(prompt.trim(), requestedType));
     res.set('Cache-Control', 'no-store');
     res.json(cards);
   } catch (error) {
-    res.status(error?.status === 503 ? 503 : 500).json({
+    const status = [400, 413, 429, 502, 503, 504].includes(error?.status) ? error.status : 500;
+    res.status(status).json({
       error: error?.message || 'Flashcard generation failed.',
     });
   }
@@ -338,4 +422,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { app, parseFlashcards, extractGeminiText, generateFlashcards };
+module.exports = { app, parseFlashcards, extractGeminiText, generateFlashcards, buildResponseSchema, requestedCardType };
