@@ -1301,6 +1301,30 @@ function makeFlashcardResponseSchema(type){
   }},required:['flashcards']
  };
 }
+// Normalize both the raw JSON Schema response and older server parseFlashcards shapes.
+// Validation still runs after normalization: invalid sources/questions are NEVER accepted.
+function normalizeGeneratedFlashcard(raw,requestedType){
+ if(!raw||typeof raw!=='object'||Array.isArray(raw))return null;
+ const first=(...values)=>values.find(v=>v!==undefined&&v!==null);
+ const value=first(raw.answer,raw.a);
+ let answer=value;
+ if(requestedType==='enumeration'&&typeof value==='string'){
+  // Older backends sometimes join enumeration answers before returning JSON.
+  const parts=value.split(/[;,\n]+/).map(v=>v.trim()).filter(Boolean);
+  if(parts.length>=2)answer=parts;
+ }
+ let page=first(raw.page,raw.page_number,raw.pageNumber);
+ if(typeof page==='string'&&/^\d+$/.test(page.trim()))page=Number(page.trim());
+ let choices=first(raw.choices,raw.opts,raw.options);
+ if(!Array.isArray(choices))choices=[];
+ const aliases={multiple_choice:'mcq',multiplechoice:'mcq',fill_in_the_blank:'fillblank',fill_in_blank:'fillblank'};
+ let type=first(raw.type,raw.question_type,raw.questionType,requestedType);
+ type=aliases[type]||type;
+ return {
+  type,question:first(raw.question,raw.q),answer,choices,
+  page,source_excerpt:first(raw.source_excerpt,raw.sourceExcerpt,raw.excerpt)
+ };
+}
 // Schema-aware validation; existing content, duplicate, and source-match checks still apply.
 function matchesFlashcardItemSchema(item,schema){
  if(!item||typeof item!=='object'||Array.isArray(item))return false;
@@ -1412,10 +1436,13 @@ ${source}`;
      if(!res.ok)throw Error(data.error||`Backend error (${res.status})`);
      const raw=Array.isArray(data)?data:Array.isArray(data.flashcards)?data.flashcards:[];
      let added=0;
+     const rejected={schema:0,content:0,source:0};
      for(const original of raw){
-      const x=original&&typeof original==='object'
-       ?{...original,choices:Array.isArray(original.choices)?original.choices:[]}:null;
-      if(!matchesFlashcardItemSchema(x,responseSchema.properties.flashcards.items))continue;
+      const x=normalizeGeneratedFlashcard(original,wanted);
+      if(!matchesFlashcardItemSchema(x,responseSchema.properties.flashcards.items)){
+       rejected.schema++;
+       continue;
+      }
       const q=clean(x?.question),a=wanted==='enumeration'?(Array.isArray(x?.answer)?x.answer.map(clean).filter(Boolean).join('; '):clean(x?.answer)):clean(x?.answer);
       const page=Number(x?.page),excerpt=clean(x?.source_excerpt);
       const opts=Array.isArray(x?.choices)?
@@ -1424,20 +1451,34 @@ ${source}`;
        !Number.isInteger(page)||page<1||page>pages.length||
        (wanted==='mcq'&&(opts.length!==4||!opts.some(v=>v.toLowerCase()===a.toLowerCase())))||
        (wanted==='enumeration'&&(answerParts(a).length<2||new Set(answerParts(a)).size!==answerParts(a).length))||
-       (wanted==='fillblank'&&((q.match(/____/g)||[]).length!==1||a.length>100)))continue;
+       (wanted==='fillblank'&&((q.match(/____/g)||[]).length!==1||a.length>100))){
+       rejected.content++;
+       continue;
+      }
       // Source traceability is mandatory; reject unverifiable excerpts.
       const match=excerpt.length>=10&&excerpt.length<=160&&
        pages[page-1].text.toLowerCase().includes(excerpt.toLowerCase());
-      if(!match)continue;
+      if(!match){rejected.source++;continue;}
       found.push({q,a,opts:wanted==='mcq'?opts:[],type:wanted,page,excerpt,pdf:fileName});
       used.add(q.toLowerCase());added++;
       saveDraft(signature,set,found,target); 
       if(found.length>=target)break;
      }
      if(added)failures=0;
-     else failures++;
+     else{
+      failures++;
+      console.warn('[TraceCard AI] Response not accepted by frontend',{
+       providerResponseCount:raw.length,rejected,
+       firstItemFields:raw[0]&&typeof raw[0]==='object'?Object.keys(raw[0]):[],
+       requestedType:wanted
+      });
+      $('info').textContent=raw.length
+       ?`Set ${set+1}: AI returned ${raw.length} cards, but none passed format/source checks. Retrying (${failures}/5)...`
+       :`Set ${set+1}: AI returned no usable cards. Retrying (${failures}/5)...`;
+     }
     }catch(error){
      failures++;
+     console.warn('[TraceCard AI] Generation request failed',error?.message||error);
      $('info').textContent=`Set ${set+1}: ${found.length}/${target} saved. AI temporarily unavailable; retry ${failures}/5...`;
      if(failures<5)await pause(Math.min(30000,5000*failures));
     }
