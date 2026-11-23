@@ -2482,6 +2482,34 @@ body[data-theme="dark"] #home .tc-slide-dot.is-active span{background:#3e536e;}
 }
 </style>
 
+<style>
+
+/* Google Calendar: each spaced-repetition review day is a separate event. */
+.tc-calendar-overlay[hidden]{display:none!important}
+.tc-calendar-overlay{position:fixed;inset:0;z-index:1500;display:grid;place-items:center;padding:18px;background:rgba(11,22,45,.66)}
+.tc-calendar-dialog{width:min(100%,620px);max-height:min(88dvh,760px);overflow:auto;border-radius:22px;border:1px solid #dce6f2;background:#fff;color:#12274c;box-shadow:0 22px 80px rgba(0,0,0,.22);padding:24px}
+.tc-calendar-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px}
+.tc-calendar-header h2{margin:0;font-size:23px;line-height:1.35;color:inherit}
+.tc-calendar-header p{margin:8px 0 0;font-size:13px;color:#596e88;line-height:1.5}
+.tc-calendar-close{flex:0 0 36px;width:36px;height:36px;border:1px solid #e1e8f0;border-radius:12px;background:#f5f8fc;color:#233d60;font-size:24px;line-height:1}
+.tc-calendar-dates{display:flex;flex-direction:column;gap:10px}
+.tc-calendar-date-row{border:1px solid #e6ebf4;border-radius:15px;padding:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;background:#fbfdff}
+.tc-calendar-date-text{display:flex;flex-direction:column;gap:4px;min-width:0}
+.tc-calendar-date-text strong{font-size:15px;font-weight:700;color:inherit}
+.tc-calendar-date-text span{font-size:12px;color:#64758d}
+.tc-calendar-add-date,.tc-calendar-footer>button{border:0;border-radius:12px;padding:11px 14px;background:#1679bd;color:#fff;font-size:13px;font-weight:700;white-space:nowrap}
+.tc-calendar-add-date:hover{background:#08699e}
+.tc-calendar-footer{margin-top:18px;padding-top:16px;border-top:1px solid #e7ebf1}
+.tc-calendar-footer>button{background:#f3650b}
+.tc-calendar-footer>button:hover{background:#de5500}
+.tc-calendar-footer p{font-size:12px;line-height:1.6;color:#64758d;margin:9px 0 0}
+body[data-theme="dark"] .tc-calendar-dialog{background:#17243a;color:#f2f6ff;border-color:#34445d}
+body[data-theme="dark"] .tc-calendar-date-row{background:#1e2d47;border-color:#40516e}
+body[data-theme="dark"] .tc-calendar-header p,body[data-theme="dark"] .tc-calendar-date-text span,body[data-theme="dark"] .tc-calendar-footer p{color:#b4c2d7}
+body[data-theme="dark"] .tc-calendar-close{background:#253451;color:#f2f6ff;border-color:#435374}
+body[data-theme="dark"] .tc-calendar-footer{border-top-color:#40516e}
+@media(max-width:560px){.tc-calendar-dialog{padding:18px;border-radius:17px}.tc-calendar-header h2{font-size:20px}.tc-calendar-date-row{align-items:stretch;flex-direction:column}.tc-calendar-add-date{width:100%;white-space:normal}}
+</style>
 </head>
 <body data-theme="light">
 
@@ -2612,7 +2640,7 @@ body[data-theme="dark"] #home .tc-slide-dot.is-active span{background:#3e536e;}
 <div class="tc-history-tools"><button type="button" id="historySearchToggle" class="tc-history-search-toggle" aria-controls="historySearchPanel" aria-expanded="false" onclick="toggleHistorySearch()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/><circle cx="9" cy="6" r="2.5" fill="var(--tc-history-button-bg,#fff)"/><circle cx="16" cy="12" r="2.5" fill="var(--tc-history-button-bg,#fff)"/><circle cx="10" cy="18" r="2.5" fill="var(--tc-history-button-bg,#fff)"/></svg><span>Filters / Search</span><span class="tc-history-search-active" id="historySearchActive" hidden></span></button><button type="button" id="clearReviewHistory" class="tc-history-clear-btn" onclick="clearReviewHistory()"><svg class="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M8 6V4h8v2m3 0-1 14H6L5 6m5 4v6m4-6v6"/></svg><span>Clear Review History</span></button></div></div>
 <div id="historySearchPanel" class="tc-history-search-panel" hidden><label for="historySearchInput">Find a question or answer from your Review History</label><div class="tc-history-search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="historySearchInput" type="search" placeholder="Type a question, topic, or answer..." autocomplete="off" oninput="searchReviewHistory(this.value)" aria-describedby="historySearchNote"><button type="button" id="historySearchClear" onclick="clearHistorySearchQuery()">Clear</button></div><small id="historySearchNote">Search across all approved sets, including older saved questions, correct answers, and your answers.</small></div>
 <div class="content-stack" id="historyContent"></div></section>
-<section id="settings"><div class="page-heading"><div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></div><div><h1>Settings</h1><p>Review notifications, calendar schedules, and local data.</p></div></div><div class="panel settings-panel"><div class="setting-block"><h3>Review Notifications</h3><p>Receive an alert when approved flashcards are due, while this website is open.</p><div class="reminder-actions"><button id="enableNotifications">Enable Notifications</button></div><small id="notificationStatus"></small></div><div class="setting-block"><h3>Google Calendar</h3><p>Add your next review schedule as an event in Google Calendar.</p><div class="reminder-actions"><button id="calendarNext">Add Next Review to Google Calendar</button></div></div><div class="setting-block"><h3>Your Data</h3><p>Flashcards and history are stored locally in this browser. Clear Generated Data removes active flashcards but keeps Review History, scores, and Recent Activity.</p></div></div></section>
+<section id="settings"><div class="page-heading"><div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></div><div><h1>Settings</h1><p>Review notifications, calendar schedules, and local data.</p></div></div><div class="panel settings-panel"><div class="setting-block"><h3>Review Notifications</h3><p>Receive an alert when approved flashcards are due, while this website is open.</p><div class="reminder-actions"><button id="enableNotifications">Enable Notifications</button></div><small id="notificationStatus"></small></div><div class="setting-block"><h3>Google Calendar</h3><p>Add each scheduled review date to Google Calendar, or download all dates as a calendar file.</p><div class="reminder-actions"><button id="calendarNext">Add Review Dates to Google Calendar</button></div></div><div class="setting-block"><h3>Your Data</h3><p>Flashcards and history are stored locally in this browser. Clear Generated Data removes active flashcards but keeps Review History, scores, and Recent Activity.</p></div></div></section>
 <section id="help">
   <div class="page-heading">
     <div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg></div>
@@ -2632,6 +2660,15 @@ body[data-theme="dark"] #home .tc-slide-dot.is-active span{background:#3e536e;}
 </section>
 </main>
 </div></div>
+
+<div id="tcCalendarSchedule" class="tc-calendar-overlay" role="dialog" aria-modal="true" aria-labelledby="tcCalendarTitle" hidden>
+ <div class="tc-calendar-dialog">
+  <div class="tc-calendar-header"><div><h2 id="tcCalendarTitle">Your Review Schedule</h2><p id="tcCalendarSummary"></p></div><button id="tcCalendarClose" type="button" class="tc-calendar-close" aria-label="Close review schedule">×</button></div>
+  <div id="tcCalendarDates" class="tc-calendar-dates"></div>
+  <div class="tc-calendar-footer"><button id="tcCalendarExport" type="button">Download All Dates (.ics)</button><p>Each date opens a separate Google Calendar event. Save the events you want, or import the .ics file into Google Calendar to add all dates.</p></div>
+ </div>
+</div>
+
 <div id="reader" hidden><div id="viewer"><button onclick="closeSource()">Close</button><b id="sourceTitle"></b><p id="sourceNote"></p><div id="paper"><canvas id="pdfCanvas"></canvas><div id="marks"></div></div></div></div>
 
 <script>
@@ -2796,42 +2833,106 @@ function calendarDate(date){
  return date.toISOString().replace(/[-:]/g,'').replace(/\.\d{3}/,'');
 }
 
-function calendarEvent(){
- const next=nextReviewDate();
- const dueCards=due();
-
- if(!next){
-  alert('No scheduled review yet. Complete a review first.');
-  return;
- }
-
- // For overdue reviews
- const now=Date.now();
- const start=new Date(
-  Math.max(next.getTime(),now+60*60*1000)
- );
+// Group cards by their *individual* scheduled review day in the user's local timezone.
+// A set can contain Difficult (+1 day), Partially Remembered (+3), Remembered (+7).
+function tcCalendarGroups(){
+ const groups=new Map();
+ scheduledCards().forEach(card=>{
+  const when=new Date(card.next);
+  if(Number.isNaN(when.getTime()))return;
+  const day=[when.getFullYear(),String(when.getMonth()+1).padStart(2,'0'),String(when.getDate()).padStart(2,'0')].join('-');
+  if(!groups.has(day)) groups.set(day,{day,when, count:0});
+  const group=groups.get(day);
+  group.count++;
+  if(when<group.when)group.when=when;
+ });
+ return [...groups.values()].sort((a,b)=>a.when-b.when);
+}
+function tcCalendarEventTime(group){
+ // Past-due dates cannot be added in the past as upcoming reminders.
+ const start=new Date(Math.max(group.when.getTime(),Date.now()+60*60*1000));
  const end=new Date(start.getTime()+30*60*1000);
-
- const count=scheduledCards().filter(c=>
-  new Date(c.next).getTime()<=start.getTime()
- ).length;
-
+ return {start,end};
+}
+function tcCalendarDescription(group){
+ return `You have ${group.count} TraceCard AI flashcard${group.count===1?'':'s'} scheduled for review on ${group.when.toLocaleDateString()}.
+Review each due flashcard based on its own rating (Difficult: 1 day, Partially Remembered: 3 days, Remembered: 7 days).
+Open TraceCard AI to review: ${location.origin+location.pathname}`;
+}
+function tcGoogleCalendarUrl(group){
+ const {start,end}=tcCalendarEventTime(group);
  const params=new URLSearchParams({
   action:'TEMPLATE',
-  text:'TraceCard AI - Flashcard Review',
+  text:`TraceCard AI - Flashcard Review (${group.count} card${group.count===1?'':'s'})`,
   dates:calendarDate(start)+'/'+calendarDate(end),
-  details:
-   'Time to review your TraceCard AI flashcards.\n'+
-   'Cards scheduled by this time: '+count+
-   '\nOpen TraceCard AI to review your due flashcards.'
+  details:tcCalendarDescription(group)
  });
-
- window.open(
-  'https://calendar.google.com/calendar/render?'+params.toString(),
-  '_blank',
-  'noopener,noreferrer'
- );
+ return 'https://calendar.google.com/calendar/render?'+params.toString();
 }
+let tcCalendarPreviousFocus=null;
+function tcCloseCalendarSchedule(){
+ const modal=$('tcCalendarSchedule');
+ if(!modal||modal.hidden)return;
+ modal.hidden=true;
+ document.body.style.overflow=modal.dataset.previousOverflow||'';
+ tcCalendarPreviousFocus?.focus?.();
+}
+function calendarEvent(){
+ const groups=tcCalendarGroups();
+ if(!groups.length){
+  alert('No scheduled reviews yet. Complete a review first.');
+  return;
+ }
+ tcCalendarPreviousFocus=document.activeElement;
+ const modal=$('tcCalendarSchedule');
+ const list=$('tcCalendarDates');
+ list.textContent='';
+ const now=Date.now();
+ groups.forEach((group,index)=>{
+  const row=document.createElement('div');row.className='tc-calendar-date-row';
+  const label=document.createElement('div');label.className='tc-calendar-date-text';
+  const date=document.createElement('strong');
+  date.textContent=group.when.toLocaleDateString(undefined,{weekday:'short',year:'numeric',month:'short',day:'numeric'});
+  const description=document.createElement('span');
+  description.textContent=`${group.count} flashcard${group.count===1?'':'s'} ${group.when.getTime()<now?' • overdue (reschedule to today)':' • due for review'}`;
+  label.append(date,description);
+  const button=document.createElement('button');button.type='button';button.className='tc-calendar-add-date';
+  button.textContent='Add to Google Calendar';
+  button.setAttribute('aria-label',`Add review on ${date.textContent} to Google Calendar`);
+  button.addEventListener('click',()=>window.open(tcGoogleCalendarUrl(group),'_blank','noopener,noreferrer'));
+  row.append(label,button);list.appendChild(row);
+ });
+ $('tcCalendarSummary').textContent=`${groups.length} review date${groups.length===1?'':'s'} across ${groups.reduce((total,g)=>total+g.count,0)} flashcards. Each date is a separate calendar event.`;
+ modal.dataset.previousOverflow=document.body.style.overflow;
+ document.body.style.overflow='hidden';
+ modal.hidden=false;
+ $('tcCalendarClose').focus();
+}
+function tcIcsDate(date){return calendarDate(date);}
+function tcIcsEscape(value){return String(value).replace(/\\/g,'\\\\').replace(/\r?\n/g,'\\n').replace(/,/g,'\\,').replace(/;/g,'\\;');}
+function tcDownloadAllCalendarDates(){
+ const groups=tcCalendarGroups();
+ if(!groups.length)return;
+ const stamp=tcIcsDate(new Date());
+ const lines=['BEGIN:VCALENDAR','VERSION:2.0','CALSCALE:GREGORIAN','PRODID:-//TraceCard AI//Review Schedule//EN','METHOD:PUBLISH'];
+ for(const group of groups){
+  const {start,end}=tcCalendarEventTime(group);
+  lines.push('BEGIN:VEVENT',`UID:tracecard-review-${group.day}@tracecard-ai`,`DTSTAMP:${stamp}`,
+   `DTSTART:${tcIcsDate(start)}`,`DTEND:${tcIcsDate(end)}`,
+   `SUMMARY:${tcIcsEscape(`TraceCard AI - Flashcard Review (${group.count} card${group.count===1?'':'s'})`)}`,
+   `DESCRIPTION:${tcIcsEscape(tcCalendarDescription(group))}`,'END:VEVENT');
+ }
+ lines.push('END:VCALENDAR');
+ const blob=new Blob([lines.join('\r\n')+'\r\n'],{type:'text/calendar;charset=utf-8'});
+ const url=URL.createObjectURL(blob);
+ const a=document.createElement('a');a.href=url;a.download='TraceCard-AI-Review-Schedule.ics';
+ document.body.appendChild(a);a.click();a.remove();
+ setTimeout(()=>URL.revokeObjectURL(url),15000);
+}
+$('tcCalendarClose').addEventListener('click',tcCloseCalendarSchedule);
+$('tcCalendarSchedule').addEventListener('click',e=>{if(e.target===$('tcCalendarSchedule'))tcCloseCalendarSchedule();});
+document.addEventListener('keydown',e=>{if(e.key==='Escape'&&!$('tcCalendarSchedule').hidden)tcCloseCalendarSchedule();});
+$('tcCalendarExport').addEventListener('click',tcDownloadAllCalendarDates);
 
 $('calendarNext').onclick=calendarEvent;
 
@@ -3707,7 +3808,7 @@ function drawReview(){
    ${animate?'<div class="tc-review-complete-animation"><span class="tc-review-complete-check" aria-hidden="true">✓</span><span>Review completed!</span></div>':''}
    <h3>Set Review Complete!</h3><p><b>${correctCount}/${session.ids.length} correct</b> · ${session.ids.length} questions reviewed.</p>
    ${next?`<p><b>Next Review:</b> ${safe(formatDate(next))}</p>`:''}
-   <div class="actions"><button onclick="show('history')">View History</button><button onclick="session=null;save();show('review')">Review Other Due Cards</button>${next?`<button onclick="calendarEvent()">Add Next Review to Google Calendar</button>`:''}</div></div>`;
+   <div class="actions"><button onclick="show('history')">View History</button><button onclick="session=null;save();show('review')">Review Other Due Cards</button>${next?`<button onclick="calendarEvent()">Add Review Dates to Google Calendar</button>`:''}</div></div>`;
   return;
  }
  const c=cards.find(x=>x.id===session.ids[session.index]);if(!c)return;
