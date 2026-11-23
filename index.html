@@ -3230,10 +3230,14 @@ async function tcBgCheckStatus(){
   if(status==='completed'||status==='succeeded'||status==='done'){
    const importedSets=Array.from({length:job.sets},(_,i)=>`background:${job.id}:set:${i+1}`).filter(d=>cards.some(c=>c.deck===d)).length;
    if(importedSets===job.sets){
-    tcProgressDisplay(total,total,'complete','Background generation finished. Open Flashcard Sets to review and approve.');
+    tcProgressDisplay(total,total,'complete','Background generation finished. Opening Flashcard Sets for validation.');
     tcBgAlert('Flashcards ready',`${job.sets} set(s) finished. Your flashcards are saved on this device.`,false);
-    $('info').textContent='Background generation complete. View Flashcard Sets to validate the results.';
-    tcBgRemember(null);tcBgStopPolling();tcBgBusy(false);draw();
+    $('info').textContent='Background generation complete. Flashcard Sets opened automatically for validation.';
+    tcBgRemember(null);tcBgStopPolling();tcBgBusy(false);
+    // After a complete and successfully imported background job (including on
+    // return from another app), open the pending flashcards for validation.
+    show('sets');
+    window.scrollTo({top:0,behavior:'auto'});
     return;
    }
    tcProgressDisplay(saved,total,'saved',`${importedSets}/${job.sets} completed sets imported.`);
@@ -3441,7 +3445,10 @@ ${source}`;
    $('info').textContent=`Completed ${completed} set(s) of ${target} cards.`;
   }
   tcProgressDisplay(completed*target+savedCount,amount*target,completed===amount?'complete':'saved',completed===amount?'All requested cards were saved. Open Flashcard Sets to validate them.':'Unfinished cards are saved on this browser. Re-upload the same PDF with the same settings if needed.');
-  if(completed)show('sets');
+  if(completed){
+   show('sets');
+   window.scrollTo({top:0,behavior:'auto'});
+  }
  }catch(err){
   tcProgressDisplay(completed*target+savedCount,amount*target,'saved','Generation was interrupted. Completed batches are retained locally.');
   $('info').textContent='Generation paused; saved progress is retained. '+err.message;
