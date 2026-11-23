@@ -424,6 +424,297 @@ async function handleGenerate(req, res) {
 app.post('/api/gemini', handleGenerate);
 app.post('/api/flashcards', handleGenerate);
 
+// Durable background-generation jobs. Requires UPSTASH_REDIS_REST_URL +
+// UPSTASH_REDIS_REST_TOKEN. No client PDF binary or provider keys are stored.
+// The job ID is a secret bearer capability. Keep it out of URLs and logs.
+const crypto = require('crypto');
+const REDIS_URL = (process.env.UPSTASH_REDIS_REST_URL || '').trim().replace(/\/$/, '');
+const REDIS_TOKEN = (process.env.UPSTASH_REDIS_REST_TOKEN || '').trim();
+const BG_CONFIGURED = Boolean(REDIS_URL && REDIS_TOKEN && /^https:\/\//.test(REDIS_URL));
+const BG_PREFIX = 'tracecard:bg:v1:';
+const BG_DUE_KEY = BG_PREFIX + 'due';
+const BG_TTL_SECONDS = 7 * 24 * 60 * 60;
+const BG_LEASE_SECONDS = Math.ceil(PROVIDER_TIMEOUT_MS / 1000) + 90;
+const BG_CONCURRENCY = boundedInteger('BG_CONCURRENCY', 2, 1, 5);
+const BG_MAX_SOURCE_CHARS = boundedInteger('BG_MAX_SOURCE_CHARS', 120000, 10000, 250000);
+const BG_POLL_MS = boundedInteger('BG_POLL_MS', 3500, 2000, 15000);
+let bgActive = 0;
+let bgTimer = null;
+let bgTickRunning = false;
+const bgLocalProcessing = new Set();
+
+async function bgRedis(...cmd) {
+  if (!BG_CONFIGURED) throw new AIError('Background storage is not configured.', 503);
+  const c = new AbortController();
+  const timeout = setTimeout(() => c.abort(), 12000);
+  try {
+    const res = await fetch(REDIS_URL, {
+      method: 'POST',
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify(cmd),
+      signal: c.signal,
+    });
+    const data = await res.json();
+    if (!res.ok || data?.error) throw new Error('Storage command failed.');
+    return data.result;
+  } catch {
+    throw new AIError('Background storage is temporarily unavailable.', 503);
+  } finally { clearTimeout(timeout); }
+}
+function bgKey(id) { return BG_PREFIX + 'job:' + id; }
+function bgLockKey(id) { return BG_PREFIX + 'lock:' + id; }
+function bgSafeJobID(id) { return typeof id === 'string' && /^[A-Za-z0-9_-]{32}$/.test(id); }
+async function bgGet(id) {
+  const raw = await bgRedis('GET', bgKey(id));
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch { throw new AIError('Stored job could not be read.', 503); }
+}
+const BG_SAVE_SCRIPT = `
+if redis.call('GET', KEYS[2]) ~= ARGV[1] then return 0 end
+redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3])
+if ARGV[4] == 'done' then
+  redis.call('ZREM', KEYS[3], ARGV[5])
+else
+  redis.call('ZADD', KEYS[3], ARGV[6], ARGV[5])
+end
+return 1`;
+const BG_UNLOCK_SCRIPT = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0`;
+async function bgSaveClaimed(job, token, nextRunAt) {
+  job.updatedAt = Date.now();
+  const done = ['completed', 'failed', 'cancelled'].includes(job.status);
+  const result = await bgRedis('EVAL', BG_SAVE_SCRIPT, 3,
+    bgKey(job.id), bgLockKey(job.id), BG_DUE_KEY,
+    token, JSON.stringify(job), BG_TTL_SECONDS, done ? 'done' : 'due', job.id, nextRunAt);
+  if (Number(result) !== 1) throw new AIError('Background job lease expired; will recover from checkpoint.', 503);
+}
+async function bgUnlock(id, token) {
+  try { await bgRedis('EVAL', BG_UNLOCK_SCRIPT, 1, bgLockKey(id), token); }
+  catch { /* The expiring lock safely releases itself. */ }
+}
+function bgPublic(job) {
+  return {
+    jobId: job.id,
+    status: job.status,
+    savedCards: job.sets.reduce((n, s) => n + s.cards.length, 0),
+    totalCards: job.setCount * job.cardsPerSet,
+    sets: job.sets.map(s => ({
+      setNumber: s.setNumber,
+      completed: s.status === 'completed',
+      status: s.status,
+      cards: s.status === 'completed' ? s.cards : [],
+    })),
+    message: job.message || '',
+  };
+}
+function bgTypeCounts(count, kind) {
+  if (kind !== 'mixed') return { [kind]: count };
+  const kinds = ['mcq', 'identification', 'enumeration', 'fillblank'];
+  const base = Math.floor(count / 4);
+  return Object.fromEntries(kinds.map((t, i) => [t, base + (i < count % 4 ? 1 : 0)]));
+}
+function bgNextType(set, counts) {
+  return Object.keys(counts).find(t => set.cards.filter(c => c.type === t).length < counts[t]);
+}
+function bgBadQuestion(q) {
+  return /\b(?:page|slide|section|chapter|unit)\s*(?:no\.?\s*|number\s*|#\s*)?\d+\b|\b(?:pdf|this document|the document|this lecture|the lecture|this module|the module|the handout|uploaded file|source text)\b|\b(?:according to|as stated in|as shown in|listed under|listed on|found on|mentioned in|taken from|based on the)\b|\b(?:who (?:wrote|authored|prepared|owns|published)|who (?:is|was) the (?:author|owner|instructor|professor|publisher)|(?:name|identify) the (?:author|owner|instructor|professor|publisher)|copyright|all rights reserved|prepared by|submitted by|written by)\b/i.test(q);
+}
+function bgPrompt(job, set, wanted, count) {
+  const skip = set.attempts || 0;
+  const chosen = Array.from({ length: Math.min(6, job.pages.length) }, (_, i) =>
+    job.pages[(set.setNumber * 3 + skip * 6 + i) % job.pages.length]);
+  const source = chosen.map(p => `PAGE ${p.page}: ${p.text.slice(0, 3500)}`).join('\n\n');
+  const avoided = job.sets.flatMap(s => s.cards.map(c => c.question)).slice(-70);
+  const typeRule = wanted === 'mcq' ? 'Exactly four distinct choices, including the correct answer.' :
+    wanted === 'enumeration' ? 'Answer must be an array of 2-5 distinct short items supported by the source page. Use no choices.' :
+    wanted === 'fillblank' ? 'Use exactly one ____ blank and a short string answer. Use no choices.' :
+    'Use a short factual string answer and no choices.';
+  return `Write EXACTLY ${count} unique, natural college-level ${wanted} flashcards based ONLY on the supplied text.\n` +
+    `Type: ${wanted}. ${typeRule}\n` +
+    `Each card must have type, question, answer, choices, page (original PDF page number), and source_excerpt (an exact 10-160 character quote from that page).\n` +
+    `No duplicates. Do not mention page, slide, chapter, document, lecturer, ownership, or metadata in the question.\n` +
+    `Output ONLY JSON with a flashcards array. Never invent facts or source excerpts.\n` +
+    `Avoid these already-generated questions: ${JSON.stringify(avoided)}\n` +
+    source;
+}
+function bgVerifyCard(card, job, chosenPages, used) {
+  if (bgBadQuestion(card.question) || used.has(card.question.trim().toLowerCase())) return false;
+  const sourcePage = job.pages.find(p => p.page === card.page);
+  if (!sourcePage || !chosenPages.includes(card.page)) return false;
+  const norm = s => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
+  return norm(sourcePage.text).includes(norm(card.source_excerpt));
+}
+async function bgProcessBatch(job) {
+  const set = job.sets.find(s => s.status !== 'completed');
+  if (!set) { job.status = 'completed'; job.message = 'All flashcards generated.'; return 0; }
+  const quota = bgTypeCounts(job.cardsPerSet, job.questionType);
+  const type = bgNextType(set, quota);
+  if (!type) {
+    set.status = 'completed';
+    if (job.sets.every(s => s.status === 'completed')) job.status = 'completed';
+    return 0;
+  }
+  const want = Math.min(8, quota[type] - set.cards.filter(c => c.type === type).length);
+  const selection = Array.from({ length: Math.min(6, job.pages.length) }, (_, i) =>
+    job.pages[(set.setNumber * 3 + (set.attempts || 0) * 6 + i) % job.pages.length].page);
+  const prompt = bgPrompt(job, set, type, want);
+  set.attempts++;
+  const batch = await queueTask(() => generateFlashcards(prompt, type));
+  const used = new Set(job.sets.flatMap(s => s.cards.map(c => c.question.trim().toLowerCase())));
+  let added = 0;
+  for (const card of batch) {
+    if (set.cards.length >= job.cardsPerSet) break;
+    if (set.cards.filter(c => c.type === type).length >= quota[type]) break;
+    if (!bgVerifyCard(card, job, selection, used)) continue;
+    set.cards.push(card);
+    used.add(card.question.trim().toLowerCase());
+    added++;
+  }
+  if (set.cards.length === job.cardsPerSet) set.status = 'completed';
+  if (job.sets.every(s => s.status === 'completed')) {
+    job.status = 'completed';
+    job.message = 'All flashcards generated.';
+  } else job.status = 'running';
+  return added;
+}
+async function bgRunOneJob(id) {
+  const token = crypto.randomBytes(20).toString('hex');
+  const locked = await bgRedis('SET', bgLockKey(id), token, 'EX', BG_LEASE_SECONDS, 'NX');
+  if (locked !== 'OK') return;
+  try {
+    const job = await bgGet(id);
+    if (!job || ['completed', 'failed', 'cancelled'].includes(job.status)) {
+      await bgRedis('ZREM', BG_DUE_KEY, id);return;
+    }
+    // Other workers will not claim the same job during this provider request.
+    await bgRedis('ZADD', BG_DUE_KEY, Date.now() + BG_LEASE_SECONDS * 1000, id);
+    job.status = 'running';
+    let nextRunAt = Date.now() + 500;
+    try {
+      const added = await bgProcessBatch(job);
+      job.failures = 0;
+      job.stalls = added > 0 ? 0 : (job.stalls || 0) + 1;
+      const attempts = job.sets.reduce((n,s) => n+s.attempts,0);
+      if (job.stalls >= 8 || attempts >= 100) {
+        job.status = 'failed';
+        job.message = 'Generation stopped because the AI could not produce enough valid, unique source-linked cards.';
+      }
+      // Keep student jobs fair: one batch at a time, next turn goes to queue.
+    } catch (e) {
+      job.failures = (job.failures || 0) + 1;
+      const delay = Math.min(180000, 10000 * 2 ** Math.min(job.failures - 1, 5));
+      nextRunAt = Date.now() + delay;
+      if (job.failures >= 9) {
+        job.status = 'failed';
+        job.message = 'The AI providers remained unavailable. Completed sets have been saved.';
+      }
+      console.warn(`[TraceCard AI] Background batch failed (${e?.status || 'provider'}); retry ${job.failures}`);
+    }
+    await bgSaveClaimed(job, token, nextRunAt);
+  } finally { await bgUnlock(id, token); }
+}
+async function bgTick() {
+  if (!BG_CONFIGURED || bgTickRunning || bgActive >= BG_CONCURRENCY) return;
+  bgTickRunning = true;
+  try {
+    const ready = await bgRedis('ZRANGEBYSCORE', BG_DUE_KEY, '-inf', Date.now(), 'LIMIT', 0, BG_CONCURRENCY * 5);
+    for (const id of ready || []) {
+      if (bgActive >= BG_CONCURRENCY) break;
+      if (!bgSafeJobID(id) || bgLocalProcessing.has(id)) continue;
+      bgLocalProcessing.add(id);
+      bgActive++;
+      void bgRunOneJob(id).catch(e => console.warn(`[TraceCard AI] Background worker: ${e?.message || 'error'}`))
+        .finally(() => { bgActive--; bgLocalProcessing.delete(id); });
+    }
+  } catch (error) {
+    console.warn(`[TraceCard AI] Background queue unavailable: ${error.message}`);
+  } finally { bgTickRunning = false; }
+}
+function bgStartWorker() {
+  if (!BG_CONFIGURED || bgTimer) return;
+  bgTimer = setInterval(() => { void bgTick(); }, BG_POLL_MS);
+  if (!process.argv.includes('--worker')) bgTimer.unref?.();
+  void bgTick();
+  console.info('[TraceCard AI] Durable background generation worker started.');
+}
+
+const bgRate = new Map();
+function bgBasicRateLimit(req) {
+  const now = Date.now();
+  const key = req.ip;
+  const window = bgRate.get(key) || { count: 0, until: now + 60000 };
+  if (now >= window.until) { window.count = 0; window.until = now + 60000; }
+  window.count++;
+  bgRate.set(key, window);
+  // Generous for classrooms sharing a single network IP.
+  return window.count <= 60;
+}
+function bgValidateRequest(body) {
+  if (!body || typeof body !== 'object') throw new AIError('Invalid generation request.', 400);
+  const pdfName = typeof body.pdfName === 'string' ? body.pdfName.slice(0, 120) : 'Document.pdf';
+  const fileSignature = String(body.fileSignature || '').slice(0, 80);
+  const questionType = body.questionType;
+  const setCount = Number(body.sets);
+  const cardsPerSet = Number(body.cardsPerSet);
+  if (!['mixed', ...CARD_TYPES].includes(questionType) || !Number.isInteger(setCount) || setCount < 1 || setCount > 5 ||
+      ![10, 20, 30].includes(cardsPerSet)) throw new AIError('Invalid question type, sets, or cards per set.', 400);
+  if (!Array.isArray(body.pages) || !body.pages.length || body.pages.length > 100) throw new AIError('Invalid PDF page data.', 400);
+  let chars = 0;
+  const seen = new Set();
+  const pages = body.pages.map((p, i) => {
+    const page = Number(p?.page), text = p?.text;
+    if (!Number.isInteger(page) || page < 1 || page > 5000 || seen.has(page) || typeof text !== 'string' || text.length > 30000)
+      throw new AIError('Invalid PDF page data.', 400);
+    seen.add(page);
+    chars += text.length;
+    return { page, text };
+  });
+  if (chars < 50 || chars > BG_MAX_SOURCE_CHARS) throw new AIError('PDF text is too short or exceeds background limits.', 413);
+  const readable = pages.filter(p => p.text.trim().length > 50);
+  if (!readable.length) throw new AIError('No readable PDF text found.', 400);
+  return { pdfName, fileSignature, questionType, setCount, cardsPerSet, pages: readable };
+}
+app.get('/api/generation-jobs/capabilities', async (_req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!BG_CONFIGURED || !PROVIDERS.some(p => p.key)) return res.json({ enabled: false, persistent: false, version: 1 });
+  try {
+    await bgRedis('PING');
+    res.json({ enabled: true, persistent: true, version: 1 });
+  } catch { res.json({ enabled: false, persistent: false, version: 1 }); }
+});
+app.post('/api/generation-jobs', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!BG_CONFIGURED) return res.status(503).json({ error: 'Durable background storage is not configured.' });
+  if (!bgBasicRateLimit(req)) return res.status(429).json({ error: 'Too many generation requests. Try again later.' });
+  try {
+    const input = bgValidateRequest(req.body);
+    const id = crypto.randomBytes(24).toString('base64url');
+    const job = {
+      id, ...input, status: 'queued', message: '', createdAt: Date.now(), updatedAt: Date.now(),
+      failures: 0, stalls: 0,
+      sets: Array.from({ length: input.setCount }, (_, i) => ({setNumber:i+1, status:'queued', attempts:0, cards:[]})),
+    };
+    // Atomically commit the job data and queue entry. Job IDs are high-entropy.
+    const script = `redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]); redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4]); return 1`;
+    await bgRedis('EVAL', script, 2, bgKey(id), BG_DUE_KEY,
+      JSON.stringify(job), BG_TTL_SECONDS, Date.now(), id);
+    // Job is safely stored BEFORE sending a success response to the browser.
+    res.status(202).json(bgPublic(job));
+    void bgTick();
+  } catch (e) {
+    res.status([400, 413, 429, 503].includes(e?.status) ? e.status : 500)
+      .json({ error: e?.message || 'Could not start background generation.' });
+  }
+});
+app.get('/api/generation-jobs/:jobId', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  if (!bgSafeJobID(req.params.jobId)) return res.status(404).json({error:'Job not found.'});
+  try {
+    const job = await bgGet(req.params.jobId);
+    if (!job) return res.status(404).json({error:'Job not found or expired.'});
+    return res.json(bgPublic(job));
+  } catch (e) { return res.status(503).json({error:e?.message || 'Job status unavailable.'}); }
+});
+
 app.get(['/', '/index.html'], (req, res) => {
   res.sendFile(path.join(__dirname, 'index.html'));
 });
@@ -431,10 +722,22 @@ app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'd
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
 if (require.main === module) {
-  app.listen(PORT, () => {
-    console.log(`TraceCard AI running at http://localhost:${PORT}`);
-    console.log('Configured AI providers:', PROVIDERS.filter(p => p.key).map(p => p.id).join(' -> ') || 'none');
-  });
+  if (process.argv.includes('--worker')) {
+    if (!BG_CONFIGURED) {
+      console.error('Worker requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.');
+      process.exitCode = 1;
+    } else {
+      bgStartWorker();
+    }
+  } else {
+    app.listen(PORT, () => {
+      console.log(`TraceCard AI running at http://localhost:${PORT}`);
+      console.log('Configured AI providers:', PROVIDERS.filter(p => p.key).map(p => p.id).join(' -> ') || 'none');
+      bgStartWorker(); // Also works in a single service; free tiers may sleep while idle.
+    });
+  }
 }
 
 module.exports = { app, parseFlashcards, extractGeminiText, generateFlashcards, buildResponseSchema, requestedCardType };
+
+if (process.env.NODE_ENV === 'test') module.exports.__test = {bgTick, bgGet, bgValidateRequest, bgRunOneJob};
