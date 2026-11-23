@@ -1985,46 +1985,46 @@ body[data-theme="dark"] .tc-review-completed .tc-review-complete-animation{color
 @media(max-width:600px){.tc-approval-toast{left:16px;right:16px;bottom:16px}.tc-gen-progress{padding:12px}}
 @media(prefers-reduced-motion:reduce){.tc-gen-progress-fill{transition:none!important}.tc-approval-toast,.tc-toast-check,.tc-review-complete-animation,.tc-review-complete-check{animation:none!important}}
 
-/* Help & Guide — spacious step cards; scoped to #help only */
-#help .tc-help-panel{width:100%;max-width:1120px;padding:clamp(22px,3.2vw,38px);border-radius:26px;box-shadow:0 12px 34px rgba(20,48,87,.045)}
-#help .tc-help-intro{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:0 2px 24px;margin-bottom:26px;border-bottom:1px solid #e9eef5}
-#help .tc-help-intro h2{font-size:clamp(22px,2.1vw,28px);font-weight:800;margin:7px 0 8px;color:#0e2054;letter-spacing:-.5px}
-#help .tc-help-intro p{margin:0;color:#68758a;font-size:14px;line-height:1.65;max-width:640px}
-#help .tc-help-eyebrow{font-size:11px;font-weight:800;letter-spacing:.15em;color:#277cbb}
-#help .tc-help-count{flex-shrink:0;border:1px solid #dceaf7;background:#eef7fe;border-radius:999px;color:#2275a6;padding:9px 14px;font-weight:800;font-size:12px;letter-spacing:.045em}
-#help .tc-help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
-#help .tc-help-step{--tc-step-accent:#1679bd;--tc-step-bg:#e8f4ff;min-width:0;display:flex;flex-direction:column;align-items:flex-start;position:relative;overflow:hidden;padding:26px 27px 27px;min-height:202px;border:1px solid #e6ebf2;border-radius:21px;background:#fff;box-shadow:0 4px 16px rgba(18,39,72,.035)}
-#help .tc-help-step::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--tc-step-accent)}
-#help .tc-help-step-top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:23px}
-#help .tc-help-step-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:var(--tc-step-bg);color:var(--tc-step-accent)}
-#help .tc-help-step-icon svg{width:24px;height:24px}
-#help .tc-help-number{font-size:12px;font-weight:800;letter-spacing:.105em;color:#71809b}
-#help .tc-help-step h3{font-size:17px;line-height:1.4;color:#12224c;font-weight:800;letter-spacing:-.2px;margin:0 0 9px}
-#help .tc-help-step p{color:#64728a;font-size:14px;line-height:1.75;margin:0;max-width:420px}
-#help .tc-help-red{--tc-step-accent:#df3d49;--tc-step-bg:#fff1f0}
-#help .tc-help-orange{--tc-step-accent:#f57918;--tc-step-bg:#fff2e5}
-#help .tc-help-sky{--tc-step-accent:#1199d1;--tc-step-bg:#e8f6fe}
-#help .tc-help-blue{--tc-step-accent:#246cc4;--tc-step-bg:#edf3ff}
-body[data-theme="dark"] #help .tc-help-panel{background:#152035;border-color:#2b3950}
-body[data-theme="dark"] #help .tc-help-intro{border-color:#34445c}
-body[data-theme="dark"] #help .tc-help-intro h2,body[data-theme="dark"] #help .tc-help-step h3{color:#f3f7ff}
-body[data-theme="dark"] #help .tc-help-intro p,body[data-theme="dark"] #help .tc-help-step p{color:#b3c3dd}
-body[data-theme="dark"] #help .tc-help-step{background:#1a2941;border-color:#33455f;box-shadow:none}
-body[data-theme="dark"] #help .tc-help-number{color:#a8bbd8}
-body[data-theme="dark"] #help .tc-help-count{background:#203c57;border-color:#36566f;color:#aee0ff}
-body[data-theme="dark"] #help .tc-help-eyebrow{color:#66c3f0}
-body[data-theme="dark"] #help .tc-help-red .tc-help-step-icon{background:#48272f;color:#ff9ba5}
-body[data-theme="dark"] #help .tc-help-orange .tc-help-step-icon{background:#473223;color:#ffc189}
-body[data-theme="dark"] #help .tc-help-sky .tc-help-step-icon{background:#1c4155;color:#8dd9ff}
-body[data-theme="dark"] #help .tc-help-blue .tc-help-step-icon{background:#24385c;color:#a3c6ff}
+/* Getting Started steps on Dashboard, formerly the Help view */
+#home .tc-help-panel{width:100%;max-width:1120px;padding:clamp(22px,3.2vw,38px);border-radius:26px;box-shadow:0 12px 34px rgba(20,48,87,.045)}
+#home .tc-help-intro{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:0 2px 24px;margin-bottom:26px;border-bottom:1px solid #e9eef5}
+#home .tc-help-intro h2{font-size:clamp(22px,2.1vw,28px);font-weight:800;margin:7px 0 8px;color:#0e2054;letter-spacing:-.5px}
+#home .tc-help-intro p{margin:0;color:#68758a;font-size:14px;line-height:1.65;max-width:640px}
+#home .tc-help-eyebrow{font-size:11px;font-weight:800;letter-spacing:.15em;color:#277cbb}
+#home .tc-help-count{flex-shrink:0;border:1px solid #dceaf7;background:#eef7fe;border-radius:999px;color:#2275a6;padding:9px 14px;font-weight:800;font-size:12px;letter-spacing:.045em}
+#home .tc-help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+#home .tc-help-step{--tc-step-accent:#1679bd;--tc-step-bg:#e8f4ff;min-width:0;display:flex;flex-direction:column;align-items:flex-start;position:relative;overflow:hidden;padding:26px 27px 27px;min-height:202px;border:1px solid #e6ebf2;border-radius:21px;background:#fff;box-shadow:0 4px 16px rgba(18,39,72,.035)}
+#home .tc-help-step::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--tc-step-accent)}
+#home .tc-help-step-top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:23px}
+#home .tc-help-step-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:var(--tc-step-bg);color:var(--tc-step-accent)}
+#home .tc-help-step-icon svg{width:24px;height:24px}
+#home .tc-help-number{font-size:12px;font-weight:800;letter-spacing:.105em;color:#71809b}
+#home .tc-help-step h3{font-size:17px;line-height:1.4;color:#12224c;font-weight:800;letter-spacing:-.2px;margin:0 0 9px}
+#home .tc-help-step p{color:#64728a;font-size:14px;line-height:1.75;margin:0;max-width:420px}
+#home .tc-help-red{--tc-step-accent:#df3d49;--tc-step-bg:#fff1f0}
+#home .tc-help-orange{--tc-step-accent:#f57918;--tc-step-bg:#fff2e5}
+#home .tc-help-sky{--tc-step-accent:#1199d1;--tc-step-bg:#e8f6fe}
+#home .tc-help-blue{--tc-step-accent:#246cc4;--tc-step-bg:#edf3ff}
+body[data-theme="dark"] #home .tc-help-panel{background:#152035;border-color:#2b3950}
+body[data-theme="dark"] #home .tc-help-intro{border-color:#34445c}
+body[data-theme="dark"] #home .tc-help-intro h2,body[data-theme="dark"] #home .tc-help-step h3{color:#f3f7ff}
+body[data-theme="dark"] #home .tc-help-intro p,body[data-theme="dark"] #home .tc-help-step p{color:#b3c3dd}
+body[data-theme="dark"] #home .tc-help-step{background:#1a2941;border-color:#33455f;box-shadow:none}
+body[data-theme="dark"] #home .tc-help-number{color:#a8bbd8}
+body[data-theme="dark"] #home .tc-help-count{background:#203c57;border-color:#36566f;color:#aee0ff}
+body[data-theme="dark"] #home .tc-help-eyebrow{color:#66c3f0}
+body[data-theme="dark"] #home .tc-help-red .tc-help-step-icon{background:#48272f;color:#ff9ba5}
+body[data-theme="dark"] #home .tc-help-orange .tc-help-step-icon{background:#473223;color:#ffc189}
+body[data-theme="dark"] #home .tc-help-sky .tc-help-step-icon{background:#1c4155;color:#8dd9ff}
+body[data-theme="dark"] #home .tc-help-blue .tc-help-step-icon{background:#24385c;color:#a3c6ff}
 @media(max-width:720px){
- #help .tc-help-grid{grid-template-columns:1fr;gap:16px}
- #help .tc-help-panel{padding:22px 18px}
- #help .tc-help-step{padding:21px 22px;min-height:0;border-radius:18px}
- #help .tc-help-step-top{margin-bottom:15px}
- #help .tc-help-intro{margin-bottom:19px;padding-bottom:20px}
+ #home .tc-help-grid{grid-template-columns:1fr;gap:16px}
+ #home .tc-help-panel{padding:22px 18px}
+ #home .tc-help-step{padding:21px 22px;min-height:0;border-radius:18px}
+ #home .tc-help-step-top{margin-bottom:15px}
+ #home .tc-help-intro{margin-bottom:19px;padding-bottom:20px}
 }
-@media(max-width:380px){#help .tc-help-count{display:none}#help .tc-help-panel{padding:18px 14px}#help .tc-help-step{padding:19px}}
+@media(max-width:380px){#home .tc-help-count{display:none}#home .tc-help-panel{padding:18px 14px}#home .tc-help-step{padding:19px}}
 
 
 /* tc-background-job-contract-v1: server-backed generation notices */
@@ -2364,32 +2364,91 @@ html body #stats .stat-tile .stat-icon svg.icon use {
 }
 </style>
 <style id="tc-dashboard-faq-styles">
-/* FAQ occupies the unused space beside Upload PDF on desktop; inherits the site's visual style. */
-#home .tc-dashboard-faq{width:100%;min-width:0;padding:18px 21px 12px;align-self:stretch;background:#fff;border:1px solid #eae7e2;border-radius:22px;box-shadow:0 6px 22px rgba(14,32,74,.035)}
-#home .tc-faq-heading{display:flex;align-items:center;gap:11px;padding:0 0 12px;min-width:0}
-#home .tc-faq-heading>.icon{flex:0 0 22px;width:22px;height:22px;color:#ff6509}
-#home .tc-faq-heading h2{font-family:inherit;font-size:clamp(18px,1.55vw,21px);font-weight:800;letter-spacing:-.3px;line-height:1.3;margin:0;color:#0b205a}
-#home .tc-faq-list{min-width:0}
-#home .tc-faq-item{border-top:1px solid #e9edf4;color:#15234a;min-width:0}
-#home .tc-faq-item summary{display:flex;align-items:center;justify-content:space-between;gap:14px;list-style:none;cursor:pointer;padding:12px 2px;color:#15234a;font-size:clamp(13px,1.15vw,15px);font-weight:690;line-height:1.4;outline-offset:3px}
-#home .tc-faq-item summary::-webkit-details-marker{display:none}
-#home .tc-faq-item summary::marker{content:""}
-#home .tc-faq-item summary>span{flex:1;min-width:0;overflow-wrap:break-word}
-#home .tc-faq-chevron{width:20px;height:20px;min-width:20px;fill:none;stroke:#65738b;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease}
-#home .tc-faq-item[open] .tc-faq-chevron{transform:rotate(180deg)}
-#home .tc-faq-item>p{font-size:clamp(12px,1.03vw,14px);line-height:1.58;color:#536684;margin:0 23px 15px 2px;overflow-wrap:break-word}
-#home .tc-faq-item summary:hover{color:#e76813}
-#home .tc-faq-item summary:focus-visible{outline:2px solid #1599e6;border-radius:6px}
-body[data-theme="dark"] #home .tc-dashboard-faq{background:#1a263c;border-color:#34445b;box-shadow:none}
-body[data-theme="dark"] #home .tc-faq-heading h2,body[data-theme="dark"] #home .tc-faq-item summary{color:#f1f5ff}
-body[data-theme="dark"] #home .tc-faq-item{border-color:#34445b}
-body[data-theme="dark"] #home .tc-faq-item>p{color:#afbfd5}
-body[data-theme="dark"] #home .tc-faq-chevron{stroke:#bbc7d9}
-body[data-theme="dark"] #home .tc-faq-item summary:hover{color:#ffac75}
-@media(max-width:900px){#home .tc-dashboard-faq{padding:17px 17px 10px}#home .tc-faq-item summary{font-size:14px}#home .tc-faq-item>p{font-size:13px}}
-@media(max-width:480px){#home .tc-dashboard-faq{padding:16px 15px 9px}#home .tc-faq-heading h2{font-size:19px}#home .tc-faq-item summary{font-size:13px;padding:13px 2px}#home .tc-faq-chevron{width:18px;height:18px;min-width:18px}}
-@media(prefers-reduced-motion:reduce){#home .tc-faq-chevron{transition:none}}
+/* FAQ accordion in the Help view; same TraceCard AI design. */
+#help .tc-dashboard-faq{width:100%;min-width:0;padding:18px 21px 12px;align-self:stretch;background:#fff;border:1px solid #eae7e2;border-radius:22px;box-shadow:0 6px 22px rgba(14,32,74,.035)}
+#help .tc-faq-heading{display:flex;align-items:center;gap:11px;padding:0 0 12px;min-width:0}
+#help .tc-faq-heading>.icon{flex:0 0 22px;width:22px;height:22px;color:#ff6509}
+#help .tc-faq-heading h2{font-family:inherit;font-size:clamp(18px,1.55vw,21px);font-weight:800;letter-spacing:-.3px;line-height:1.3;margin:0;color:#0b205a}
+#help .tc-faq-list{min-width:0}
+#help .tc-faq-item{border-top:1px solid #e9edf4;color:#15234a;min-width:0}
+#help .tc-faq-item summary{display:flex;align-items:center;justify-content:space-between;gap:14px;list-style:none;cursor:pointer;padding:12px 2px;color:#15234a;font-size:clamp(13px,1.15vw,15px);font-weight:690;line-height:1.4;outline-offset:3px}
+#help .tc-faq-item summary::-webkit-details-marker{display:none}
+#help .tc-faq-item summary::marker{content:""}
+#help .tc-faq-item summary>span{flex:1;min-width:0;overflow-wrap:break-word}
+#help .tc-faq-chevron{width:20px;height:20px;min-width:20px;fill:none;stroke:#65738b;stroke-width:2.25;stroke-linecap:round;stroke-linejoin:round;transition:transform .2s ease}
+#help .tc-faq-item[open] .tc-faq-chevron{transform:rotate(180deg)}
+#help .tc-faq-item>p{font-size:clamp(12px,1.03vw,14px);line-height:1.58;color:#536684;margin:0 23px 15px 2px;overflow-wrap:break-word}
+#help .tc-faq-item summary:hover{color:#e76813}
+#help .tc-faq-item summary:focus-visible{outline:2px solid #1599e6;border-radius:6px}
+body[data-theme="dark"] #help .tc-dashboard-faq{background:#1a263c;border-color:#34445b;box-shadow:none}
+body[data-theme="dark"] #help .tc-faq-heading h2,body[data-theme="dark"] #help .tc-faq-item summary{color:#f1f5ff}
+body[data-theme="dark"] #help .tc-faq-item{border-color:#34445b}
+body[data-theme="dark"] #help .tc-faq-item>p{color:#afbfd5}
+body[data-theme="dark"] #help .tc-faq-chevron{stroke:#bbc7d9}
+body[data-theme="dark"] #help .tc-faq-item summary:hover{color:#ffac75}
+@media(max-width:900px){#help .tc-dashboard-faq{padding:17px 17px 10px}#help .tc-faq-item summary{font-size:14px}#help .tc-faq-item>p{font-size:13px}}
+@media(max-width:480px){#help .tc-dashboard-faq{padding:16px 15px 9px}#help .tc-faq-heading h2{font-size:19px}#help .tc-faq-item summary{font-size:13px;padding:13px 2px}#help .tc-faq-chevron{width:18px;height:18px;min-width:18px}}
+@media(prefers-reduced-motion:reduce){#help .tc-faq-chevron{transition:none}}
 </style>
+
+<style id="tc-swapped-faq-guide-layout-2026">
+/* The four-step guide now sits in the dashboard right column. */
+#home .dashboard-right .tc-help-panel{max-width:none;min-width:0;padding:clamp(18px,2vw,26px)}
+#home .dashboard-right .tc-help-intro{gap:12px;padding-bottom:15px;margin-bottom:17px}
+#home .dashboard-right .tc-help-intro h2{font-size:clamp(19px,1.7vw,23px);margin:5px 0}
+#home .dashboard-right .tc-help-intro p{font-size:13px;line-height:1.5}
+#home .dashboard-right .tc-help-grid{gap:12px}
+#home .dashboard-right .tc-help-step{min-height:154px;padding:17px 16px;border-radius:17px}
+#home .dashboard-right .tc-help-step-top{margin-bottom:10px}
+#home .dashboard-right .tc-help-step-icon{width:38px;height:38px;border-radius:12px}
+#home .dashboard-right .tc-help-step-icon svg{width:21px;height:21px}
+#home .dashboard-right .tc-help-number{font-size:10px}
+#home .dashboard-right .tc-help-step h3{font-size:15px;line-height:1.3;margin-bottom:5px}
+#home .dashboard-right .tc-help-step p{font-size:12px;line-height:1.55}
+#help .tc-dashboard-faq{max-width:1120px;padding:clamp(20px,3vw,32px)}
+#help .tc-faq-heading{padding-bottom:17px}
+#help .tc-faq-heading h2{font-size:clamp(21px,2vw,28px)}
+#help .tc-faq-item summary{font-size:clamp(14px,1.4vw,17px);padding:17px 2px}
+#help .tc-faq-item > p{font-size:clamp(13px,1.2vw,15px);line-height:1.7;margin-bottom:19px}
+@media(max-width:720px){
+  #home .dashboard-right .tc-help-grid{grid-template-columns:1fr;gap:12px}
+  #home .dashboard-right .tc-help-step{min-height:0;padding:18px}
+  #home .dashboard-right .tc-help-intro{margin-bottom:16px}
+  #help .tc-dashboard-faq{padding:20px 17px}
+}
+@media (min-width:721px) and (max-width:1080px){
+  #home .dashboard-right .tc-help-grid{grid-template-columns:1fr}
+}
+</style>
+
+<style id="tc-getting-started-slideshow-v1">
+/* Only the Getting Started panel: one card at a time, with the same original icons/colors. */
+#home #tcGettingStartedSlides{display:block!important;width:100%;min-width:0;}
+#home #tcGettingStartedSlides .tc-help-step{width:100%;min-height:200px;box-sizing:border-box;}
+#home #tcGettingStartedSlides .tc-help-step[hidden]{display:none!important;}
+#home #tcGettingStartedSlides .tc-help-step.is-active{display:flex!important;animation:tc-guide-slide-in .45s cubic-bezier(.2,.75,.25,1) both;}
+#home #tcGettingStartedSlides .tc-help-step-top{margin-bottom:18px;}
+@keyframes tc-guide-slide-in{from{opacity:0;transform:translateX(15px)}to{opacity:1;transform:translateX(0)}}
+#home .tc-slide-controls{display:flex;align-items:center;justify-content:center;gap:22px;margin-top:19px;min-height:37px;}
+#home .tc-slide-arrow{border:1px solid #dce7f1;border-radius:12px;background:#f6faff;color:#324c72;display:grid;place-items:center;width:36px;height:36px;flex-shrink:0;cursor:pointer;transition:background .2s,border-color .2s,color .2s;}
+#home .tc-slide-arrow:hover{background:#e6f3ff;border-color:#93c8f0;color:#176dad;}
+#home .tc-slide-arrow:focus-visible,#home .tc-slide-dot:focus-visible{outline:3px solid #1599e6;outline-offset:3px;}
+#home .tc-slide-arrow svg{width:18px;height:18px;display:block;}
+#home .tc-slide-dots{display:flex;align-items:center;gap:9px;}
+#home .tc-slide-dot{width:30px;height:32px;display:grid;place-items:center;padding:0;border:0;background:transparent;cursor:pointer;}
+#home .tc-slide-dot span{display:block;width:9px;height:9px;background:#c9d5e3;border-radius:99px;transition:width .2s,background-color .2s;}
+#home .tc-slide-dot.is-active span{width:27px;background:#f57918;}
+body[data-theme="dark"] #home .tc-slide-arrow{background:#233651;border-color:#3b5574;color:#dbeaff;}
+body[data-theme="dark"] #home .tc-slide-arrow:hover{background:#284765;border-color:#6897c0;}
+body[data-theme="dark"] #home .tc-slide-dot span{background:#526786;}
+body[data-theme="dark"] #home .tc-slide-dot.is-active span{background:#ff9b5b;}
+@media(max-width:720px){
+ #home #tcGettingStartedSlides .tc-help-step{min-height:212px;}
+ #home .tc-slide-controls{margin-top:14px;gap:14px;}
+}
+@media(prefers-reduced-motion:reduce){#home #tcGettingStartedSlides .tc-help-step.is-active{animation:none!important;}}
+</style>
+
 </head>
 <body data-theme="light">
 
@@ -2468,17 +2527,44 @@ body[data-theme="dark"] #home .tc-faq-item summary:hover{color:#ffac75}
  <div id="tcBgStatus" hidden role="status" aria-live="polite"><strong id="tcBgStatusHeading">Background generation</strong><span id="tcBgStatusText">Preparing job...</span><div class="tc-bg-actions"><button type="button" id="tcBgRefresh">Check status</button></div></div></div>
   </div>
   <div class="dashboard-right">
-    <div class="panel tc-dashboard-faq" aria-labelledby="tcFaqHeading">
-     <div class="tc-faq-heading"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg><h2 id="tcFaqHeading">Frequently Asked Questions</h2></div>
-     <div class="tc-faq-list">
-      <details class="tc-faq-item" open><summary><span>1. What does TraceCard AI stand for?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Trace stands for Traceability, Card refers to Flashcards, and AI stands for Artificial Intelligence. Together, they represent a study tool that creates flashcards while helping students trace information back to its original source.</p></details>
-      <details class="tc-faq-item"><summary><span>2. Is TraceCard AI free to use?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Yes! TraceCard AI is free to use. However, flashcard generation may sometimes be limited depending on AI service availability.</p></details>
-      <details class="tc-faq-item"><summary><span>3. Do I need to create an account?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>No. You can use TraceCard AI without signing up or logging in.</p></details>
-      <details class="tc-faq-item"><summary><span>4. Can I trust all the flashcards generated by AI?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Not always. AI can sometimes make mistakes, so you can check, edit, approve, or reject each flashcard before studying.</p></details>
-      <details class="tc-faq-item"><summary><span>5. How does TraceCard AI decide when I should review again?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Your next review depends on how well you remember: Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p></details>
-     </div>
+    <div class="panel settings-panel tc-help-panel">
+    <div class="tc-help-intro">
+      <div><span class="tc-help-eyebrow">QUICK GUIDE</span><h2>Getting Started</h2><p>Follow these four simple steps to create, organize, and review your flashcards.</p></div>
+      <span class="tc-help-count" aria-hidden="true">4 STEPS</span>
     </div>
-    
+    <div class="help-steps tc-help-grid" id="tcGettingStartedSlides" role="region" aria-roledescription="carousel" aria-label="Getting Started four-step slideshow" aria-live="off">
+      <article class="tc-help-step tc-help-red is-active" aria-label="Step 1 of 4">
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg></span><span class="tc-help-number">STEP 01</span></div>
+        <h3>Upload a PDF</h3>
+        <p>Choose a PDF lecture file. Text is extracted page by page, with OCR fallback.</p>
+      </article>
+      <article class="tc-help-step tc-help-orange" aria-label="Step 2 of 4" hidden>
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg></span><span class="tc-help-number">STEP 02</span></div>
+        <h3>Generate flashcards</h3>
+        <p>Choose your question type, sets, and cards per set, then generate your flashcards.</p>
+      </article>
+      <article class="tc-help-step tc-help-sky" aria-label="Step 3 of 4" hidden>
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg></span><span class="tc-help-number">STEP 03</span></div>
+        <h3>Validate each set</h3>
+        <p>Edit, approve, or reject flashcards before reviewing them.</p>
+      </article>
+      <article class="tc-help-step tc-help-blue" aria-label="Step 4 of 4" hidden>
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></span><span class="tc-help-number">STEP 04</span></div>
+        <h3>Review &amp; track</h3>
+        <p>Rate recall as Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p>
+      </article>
+    </div>
+    <div class="tc-slide-controls" aria-label="Slideshow controls">
+      <button type="button" class="tc-slide-arrow" id="tcSlidePrev" aria-label="Previous step" title="Previous step"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m15 18-6-6 6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+      <div class="tc-slide-dots" role="group" aria-label="Select a step">
+        <button type="button" class="tc-slide-dot is-active" aria-label="Show step 1" aria-current="step" data-tc-slide="0"><span></span></button>
+        <button type="button" class="tc-slide-dot" aria-label="Show step 2" data-tc-slide="1"><span></span></button>
+        <button type="button" class="tc-slide-dot" aria-label="Show step 3" data-tc-slide="2"><span></span></button>
+        <button type="button" class="tc-slide-dot" aria-label="Show step 4" data-tc-slide="3"><span></span></button>
+      </div>
+      <button type="button" class="tc-slide-arrow" id="tcSlideNext" aria-label="Next step" title="Next step"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="m9 18 6-6-6-6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+    </div>
+  </div>
    <div class="panel reminder-panel"><div class="panel-top"><div class="panel-top-title"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg><h2>Review Reminder</h2></div><button type="button" class="link-button" onclick="show('review')">View All ›</button></div><div id="reminderContent"></div></div>
    <div class="panel activity-panel"><div class="panel-top"><div class="panel-top-title"><svg class="icon" aria-hidden="true"><use href="#i-history"></use></svg><h2>Recent Activity</h2></div><button type="button" class="link-button" onclick="show('history')">View History ›</button></div><div id="recentActivity" class="activity-list"></div></div>
   </div>
@@ -2495,36 +2581,19 @@ body[data-theme="dark"] #home .tc-faq-item summary:hover{color:#ffac75}
 <section id="help">
   <div class="page-heading">
     <div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg></div>
-    <div><h1>Help &amp; Guide</h1><p>How TraceCard AI works.</p></div>
+    <div><h1>Help &amp; Guide</h1><p>Find answers to common questions about TraceCard AI.</p></div>
   </div>
-  <div class="panel settings-panel tc-help-panel">
-    <div class="tc-help-intro">
-      <div><span class="tc-help-eyebrow">QUICK GUIDE</span><h2>Getting started</h2><p>Follow these four simple steps to create, organize, and review your flashcards.</p></div>
-      <span class="tc-help-count" aria-hidden="true">4 STEPS</span>
+  <div class="panel tc-dashboard-faq" aria-labelledby="tcFaqHeading">
+     <div class="tc-faq-heading"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg><h2 id="tcFaqHeading">Frequently Asked Questions</h2></div>
+     <div class="tc-faq-list">
+      <details class="tc-faq-item" open><summary><span>1. What does TraceCard AI stand for?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Trace stands for Traceability, Card refers to Flashcards, and AI stands for Artificial Intelligence. Together, they represent a study tool that creates flashcards while helping students trace information back to its original source.</p></details>
+      <details class="tc-faq-item"><summary><span>2. Is TraceCard AI free to use?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Yes! TraceCard AI is free to use. However, flashcard generation may sometimes be limited depending on AI service availability.</p></details>
+      <details class="tc-faq-item"><summary><span>3. Do I need to create an account?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>No. You can use TraceCard AI without signing up or logging in.</p></details>
+      <details class="tc-faq-item"><summary><span>4. Can I trust all the flashcards generated by AI?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Not always. AI can sometimes make mistakes, so you can check, edit, approve, or reject each flashcard before studying.</p></details>
+      <details class="tc-faq-item"><summary><span>5. How does TraceCard AI decide when I should review again?</span><svg class="tc-faq-chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg></summary><p>Your next review depends on how well you remember: Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p></details>
+     </div>
     </div>
-    <div class="help-steps tc-help-grid">
-      <article class="tc-help-step tc-help-red">
-        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg></span><span class="tc-help-number">STEP 01</span></div>
-        <h3>Upload a PDF</h3>
-        <p>Choose a PDF lecture file. Text is extracted page by page, with OCR fallback.</p>
-      </article>
-      <article class="tc-help-step tc-help-orange">
-        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg></span><span class="tc-help-number">STEP 02</span></div>
-        <h3>Generate flashcards</h3>
-        <p>Choose your question type, sets, and cards per set, then generate your flashcards.</p>
-      </article>
-      <article class="tc-help-step tc-help-sky">
-        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg></span><span class="tc-help-number">STEP 03</span></div>
-        <h3>Validate each set</h3>
-        <p>Edit, approve, or reject flashcards before reviewing them.</p>
-      </article>
-      <article class="tc-help-step tc-help-blue">
-        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></span><span class="tc-help-number">STEP 04</span></div>
-        <h3>Review &amp; track</h3>
-        <p>Rate recall as Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p>
-      </article>
-    </div>
-  </div>
+
 </section>
 </main>
 </div></div>
@@ -4232,5 +4301,61 @@ document.querySelectorAll('.tc-header-icon[data-page]').forEach(button=>{
 
 </script>
 <div id="tcApprovalToast" class="tc-approval-toast" role="status" aria-live="polite" hidden><span class="tc-toast-check" aria-hidden="true">✓</span><span id="tcApprovalToastText">Flashcards approved</span></div>
+
+<script id="tc-getting-started-slideshow-script-v1">
+(function(){
+ "use strict";
+ function initGettingStartedSlideshow(){
+  const container=document.getElementById('tcGettingStartedSlides');
+  if(!container)return;
+  const panel=container.closest('.tc-help-panel');
+  const cards=Array.from(container.querySelectorAll('.tc-help-step'));
+  const dots=Array.from(panel.querySelectorAll('.tc-slide-dot'));
+  const previous=document.getElementById('tcSlidePrev');
+  const next=document.getElementById('tcSlideNext');
+  if(cards.length!==4 || dots.length!==cards.length || !previous || !next)return;
+  let current=0;
+  let timer=null;
+  const duration=4800;
+  const reducedMotion=window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function display(index){
+   current=(index+cards.length)%cards.length;
+   cards.forEach((card,i)=>{
+    const selected=i===current;
+    card.hidden=!selected;
+    card.classList.toggle('is-active',selected);
+   });
+   dots.forEach((dot,i)=>{
+    const selected=i===current;
+    dot.classList.toggle('is-active',selected);
+    if(selected)dot.setAttribute('aria-current','step');
+    else dot.removeAttribute('aria-current');
+   });
+  }
+  function pause(){if(timer!==null){clearInterval(timer);timer=null;}}
+  function start(){
+   pause();
+   if(reducedMotion || document.hidden)return;
+   timer=setInterval(()=>{
+    if(!document.hidden && document.getElementById('home')?.classList.contains('active')) display(current+1);
+   },duration);
+  }
+  function select(index){display(index);start();}
+  previous.addEventListener('click',()=>select(current-1));
+  next.addEventListener('click',()=>select(current+1));
+  dots.forEach((dot,i)=>dot.addEventListener('click',()=>select(i)));
+  panel.addEventListener('mouseenter',pause);
+  panel.addEventListener('mouseleave',start);
+  panel.addEventListener('focusin',pause);
+  panel.addEventListener('focusout',event=>{if(!panel.contains(event.relatedTarget))start();});
+  document.addEventListener('visibilitychange',()=>{if(document.hidden)pause();else start();});
+  display(0);
+  start();
+ }
+ if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',initGettingStartedSlideshow,{once:true});
+ else initGettingStartedSlideshow();
+})();
+</script>
+
 </body>
 </html>
