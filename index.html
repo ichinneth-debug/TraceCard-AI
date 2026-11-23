@@ -1982,6 +1982,58 @@ body[data-theme="dark"] .tc-approval-toast{background:#173650;color:#f3faff;bord
 body[data-theme="dark"] .tc-review-completed .tc-review-complete-animation{color:#84d0ff}
 @media(max-width:600px){.tc-approval-toast{left:16px;right:16px;bottom:16px}.tc-gen-progress{padding:12px}}
 @media(prefers-reduced-motion:reduce){.tc-gen-progress-fill{transition:none!important}.tc-approval-toast,.tc-toast-check,.tc-review-complete-animation,.tc-review-complete-check{animation:none!important}}
+
+/* Help & Guide — spacious step cards; scoped to #help only */
+#help .tc-help-panel{width:100%;max-width:1120px;padding:clamp(22px,3.2vw,38px);border-radius:26px;box-shadow:0 12px 34px rgba(20,48,87,.045)}
+#help .tc-help-intro{display:flex;justify-content:space-between;align-items:center;gap:20px;padding:0 2px 24px;margin-bottom:26px;border-bottom:1px solid #e9eef5}
+#help .tc-help-intro h2{font-size:clamp(22px,2.1vw,28px);font-weight:800;margin:7px 0 8px;color:#0e2054;letter-spacing:-.5px}
+#help .tc-help-intro p{margin:0;color:#68758a;font-size:14px;line-height:1.65;max-width:640px}
+#help .tc-help-eyebrow{font-size:11px;font-weight:800;letter-spacing:.15em;color:#277cbb}
+#help .tc-help-count{flex-shrink:0;border:1px solid #dceaf7;background:#eef7fe;border-radius:999px;color:#2275a6;padding:9px 14px;font-weight:800;font-size:12px;letter-spacing:.045em}
+#help .tc-help-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:22px}
+#help .tc-help-step{--tc-step-accent:#1679bd;--tc-step-bg:#e8f4ff;min-width:0;display:flex;flex-direction:column;align-items:flex-start;position:relative;overflow:hidden;padding:26px 27px 27px;min-height:202px;border:1px solid #e6ebf2;border-radius:21px;background:#fff;box-shadow:0 4px 16px rgba(18,39,72,.035)}
+#help .tc-help-step::before{content:"";position:absolute;top:0;left:0;right:0;height:4px;background:var(--tc-step-accent)}
+#help .tc-help-step-top{width:100%;display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:23px}
+#help .tc-help-step-icon{width:46px;height:46px;display:grid;place-items:center;border-radius:14px;background:var(--tc-step-bg);color:var(--tc-step-accent)}
+#help .tc-help-step-icon svg{width:24px;height:24px}
+#help .tc-help-number{font-size:12px;font-weight:800;letter-spacing:.105em;color:#71809b}
+#help .tc-help-step h3{font-size:17px;line-height:1.4;color:#12224c;font-weight:800;letter-spacing:-.2px;margin:0 0 9px}
+#help .tc-help-step p{color:#64728a;font-size:14px;line-height:1.75;margin:0;max-width:420px}
+#help .tc-help-red{--tc-step-accent:#df3d49;--tc-step-bg:#fff1f0}
+#help .tc-help-orange{--tc-step-accent:#f57918;--tc-step-bg:#fff2e5}
+#help .tc-help-sky{--tc-step-accent:#1199d1;--tc-step-bg:#e8f6fe}
+#help .tc-help-blue{--tc-step-accent:#246cc4;--tc-step-bg:#edf3ff}
+body[data-theme="dark"] #help .tc-help-panel{background:#152035;border-color:#2b3950}
+body[data-theme="dark"] #help .tc-help-intro{border-color:#34445c}
+body[data-theme="dark"] #help .tc-help-intro h2,body[data-theme="dark"] #help .tc-help-step h3{color:#f3f7ff}
+body[data-theme="dark"] #help .tc-help-intro p,body[data-theme="dark"] #help .tc-help-step p{color:#b3c3dd}
+body[data-theme="dark"] #help .tc-help-step{background:#1a2941;border-color:#33455f;box-shadow:none}
+body[data-theme="dark"] #help .tc-help-number{color:#a8bbd8}
+body[data-theme="dark"] #help .tc-help-count{background:#203c57;border-color:#36566f;color:#aee0ff}
+body[data-theme="dark"] #help .tc-help-eyebrow{color:#66c3f0}
+body[data-theme="dark"] #help .tc-help-red .tc-help-step-icon{background:#48272f;color:#ff9ba5}
+body[data-theme="dark"] #help .tc-help-orange .tc-help-step-icon{background:#473223;color:#ffc189}
+body[data-theme="dark"] #help .tc-help-sky .tc-help-step-icon{background:#1c4155;color:#8dd9ff}
+body[data-theme="dark"] #help .tc-help-blue .tc-help-step-icon{background:#24385c;color:#a3c6ff}
+@media(max-width:720px){
+ #help .tc-help-grid{grid-template-columns:1fr;gap:16px}
+ #help .tc-help-panel{padding:22px 18px}
+ #help .tc-help-step{padding:21px 22px;min-height:0;border-radius:18px}
+ #help .tc-help-step-top{margin-bottom:15px}
+ #help .tc-help-intro{margin-bottom:19px;padding-bottom:20px}
+}
+@media(max-width:380px){#help .tc-help-count{display:none}#help .tc-help-panel{padding:18px 14px}#help .tc-help-step{padding:19px}}
+
+
+/* tc-background-job-contract-v1: server-backed generation notices */
+#tcBgStatus{margin-top:10px;padding:10px 12px;border:1px solid #b6daf7;background:#f0f8ff;border-radius:12px;color:#19436a;font-size:13px;line-height:1.45}
+#tcBgStatus[hidden]{display:none!important}
+#tcBgStatus strong{display:block;font-weight:750;margin-bottom:3px}
+#tcBgStatus .tc-bg-actions{margin-top:8px}
+#tcBgRefresh{border:1px solid #8fc5e9;background:#fff;border-radius:9px;padding:6px 12px;color:#154a79;cursor:pointer;font:inherit;font-weight:650}
+#tcBgRefresh:disabled{opacity:.65;cursor:wait}
+body[data-theme="dark"] #tcBgStatus{background:#12273d;color:#c5e9ff;border-color:#31577b}
+body[data-theme="dark"] #tcBgRefresh{background:#1a3856;color:#e4f4ff;border-color:#517ca3}
 </style>
 </head>
 <body data-theme="light">
@@ -2056,8 +2108,9 @@ body[data-theme="dark"] .tc-review-completed .tc-review-complete-animation{color
    </div><div class="generate-actions"><button id="make" class="btn-primary" disabled>Generate Flashcards</button><button id="clear" class="btn-secondary">Clear Generated Data</button></div><p id="info" role="status">No PDF selected.</p><div id="tcGenProgress" class="tc-gen-progress" hidden aria-live="polite">
  <div class="tc-gen-progress-header"><strong id="tcGenProgressTitle">Flashcard generation</strong><span id="tcGenProgressCount">0 / 20 saved</span></div>
  <div id="tcGenProgressTrack" class="tc-gen-progress-track" role="progressbar" aria-label="Successfully saved flashcards" aria-valuemin="0" aria-valuemax="20" aria-valuenow="0"><div id="tcGenProgressFill" class="tc-gen-progress-fill"></div></div>
- <p id="tcGenProgressNote" class="tc-gen-progress-note">Progress is saved after each valid flashcard.</p>
-</div></div>
+  <p id="tcGenProgressNote" class="tc-gen-progress-note">Progress is saved after each valid flashcard.</p>
+ </div>
+ <div id="tcBgStatus" hidden role="status" aria-live="polite"><strong id="tcBgStatusHeading">Background generation</strong><span id="tcBgStatusText">Preparing job...</span><div class="tc-bg-actions"><button type="button" id="tcBgRefresh">Check status</button></div></div></div>
   </div>
   <div class="dashboard-right">
    <div class="panel reminder-panel"><div class="panel-top"><div class="panel-top-title"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg><h2>Review Reminder</h2></div><button type="button" class="link-button" onclick="show('review')">View All ›</button></div><div id="reminderContent"></div></div>
@@ -2073,7 +2126,40 @@ body[data-theme="dark"] .tc-review-completed .tc-review-complete-animation{color
 <div id="historySearchPanel" class="tc-history-search-panel" hidden><label for="historySearchInput">Find a question or answer from your Review History</label><div class="tc-history-search-field"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg><input id="historySearchInput" type="search" placeholder="Type a question, topic, or answer..." autocomplete="off" oninput="searchReviewHistory(this.value)" aria-describedby="historySearchNote"><button type="button" id="historySearchClear" onclick="clearHistorySearchQuery()">Clear</button></div><small id="historySearchNote">Search across all approved sets, including older saved questions, correct answers, and your answers.</small></div>
 <div class="content-stack" id="historyContent"></div></section>
 <section id="settings"><div class="page-heading"><div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-settings"></use></svg></div><div><h1>Settings</h1><p>Review notifications, calendar schedules, and local data.</p></div></div><div class="panel settings-panel"><div class="setting-block"><h3>Review Notifications</h3><p>Receive an alert when approved flashcards are due, while this website is open.</p><div class="reminder-actions"><button id="enableNotifications">Enable Notifications</button></div><small id="notificationStatus"></small></div><div class="setting-block"><h3>Google Calendar</h3><p>Add your next review schedule as an event in Google Calendar.</p><div class="reminder-actions"><button id="calendarNext">Add Next Review to Google Calendar</button></div></div><div class="setting-block"><h3>Your Data</h3><p>Flashcards and history are stored locally in this browser. Clear Generated Data removes active flashcards but keeps Review History, scores, and Recent Activity.</p></div></div></section>
-<section id="help"><div class="page-heading"><div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg></div><div><h1>Help &amp; Guide</h1><p>How TraceCard AI works.</p></div></div><div class="panel settings-panel"><h2>Getting started</h2><div class="help-steps"><div><b>1. Upload a PDF</b><p>Choose a PDF lecture file. Text is extracted page by page, with OCR fallback.</p></div><div><b>2. Generate flashcards</b><p>Select the number of sets and cards, then generate multiple-choice questions.</p></div><div><b>3. Validate each set</b><p>Edit, approve, or reject flashcards before reviewing them.</p></div><div><b>4. Review &amp; track</b><p>Rate recall as Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p></div></div></div></section>
+<section id="help">
+  <div class="page-heading">
+    <div class="page-heading-icon"><svg class="icon" aria-hidden="true"><use href="#i-help"></use></svg></div>
+    <div><h1>Help &amp; Guide</h1><p>How TraceCard AI works.</p></div>
+  </div>
+  <div class="panel settings-panel tc-help-panel">
+    <div class="tc-help-intro">
+      <div><span class="tc-help-eyebrow">QUICK GUIDE</span><h2>Getting started</h2><p>Follow these four simple steps to create, organize, and review your flashcards.</p></div>
+      <span class="tc-help-count" aria-hidden="true">4 STEPS</span>
+    </div>
+    <div class="help-steps tc-help-grid">
+      <article class="tc-help-step tc-help-red">
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-file"></use></svg></span><span class="tc-help-number">STEP 01</span></div>
+        <h3>Upload a PDF</h3>
+        <p>Choose a PDF lecture file. Text is extracted page by page, with OCR fallback.</p>
+      </article>
+      <article class="tc-help-step tc-help-orange">
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-layers"></use></svg></span><span class="tc-help-number">STEP 02</span></div>
+        <h3>Generate flashcards</h3>
+        <p>Choose your question type, sets, and cards per set, then generate your flashcards.</p>
+      </article>
+      <article class="tc-help-step tc-help-sky">
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-check-circle"></use></svg></span><span class="tc-help-number">STEP 03</span></div>
+        <h3>Validate each set</h3>
+        <p>Edit, approve, or reject flashcards before reviewing them.</p>
+      </article>
+      <article class="tc-help-step tc-help-blue">
+        <div class="tc-help-step-top"><span class="tc-help-step-icon"><svg class="icon" aria-hidden="true"><use href="#i-calendar"></use></svg></span><span class="tc-help-number">STEP 04</span></div>
+        <h3>Review &amp; track</h3>
+        <p>Rate recall as Difficult (1 day), Partially Remembered (3 days), or Remembered (7 days).</p>
+      </article>
+    </div>
+  </div>
+</section>
 </main>
 </div></div>
 <div id="reader" hidden><div id="viewer"><button onclick="closeSource()">Close</button><b id="sourceTitle"></b><p id="sourceNote"></p><div id="paper"><canvas id="pdfCanvas"></canvas><div id="marks"></div></div></div></div>
@@ -2573,8 +2659,185 @@ function commitDeck(list,setNumber,batchDate){
  cards.push(...list.map(c=>({...c,id:uid(),deck,name,status:'pending',next:null})));
  save();
 }
+
+// tc-background-job-contract-v1
+// When a durable background-job backend is available, the server owns the entire
+// generation lifecycle. The browser can be suspended or closed after receiving a
+// jobId. Without the backend capabilities endpoint, the original browser workflow
+// remains the fallback (and cannot promise background completion).
+const tcBgKey=key+'background_generation_job_v1';
+const tcBgBase='/api/generation-jobs';
+let tcBgPollTimer=null,tcBgChecking=false;
+function tcBgGet(){
+ try{const job=JSON.parse(tcStore.getItem(tcBgKey)||'null');return job&&typeof job.id==='string'&&job.id.length>=12?job:null;}
+ catch{return null;}
+}
+function tcBgRemember(job){
+ try{if(job)tcStore.setItem(tcBgKey,JSON.stringify(job));else tcStore.removeItem(tcBgKey)}
+ catch(e){console.warn('[TraceCard AI] Could not persist generation job ID',e);throw Error('Browser storage unavailable. Cannot safely track a background job.');}
+}
+function tcBgAlert(title,message,showRefresh=true){
+ const node=$('tcBgStatus');if(!node)return;
+ node.hidden=false;$('tcBgStatusHeading').textContent=title;
+ $('tcBgStatusText').textContent=message;
+ $('tcBgRefresh').hidden=!showRefresh;
+}
+function tcBgBusy(busy){
+ tcGenerationRunning=busy;
+ const b=$('make');b.disabled=busy||!doc;
+ if(busy)b.textContent='Generating in background...';
+ else b.textContent=doc?'Generate Flashcards':'Generate Flashcards';
+}
+function tcBgStopPolling(){if(tcBgPollTimer){clearInterval(tcBgPollTimer);tcBgPollTimer=null;}}
+function tcBgStartPolling(){
+ if(tcBgPollTimer)return;
+ tcBgPollTimer=setInterval(()=>{
+  if(document.visibilityState==='visible'&&tcBgGet())tcBgCheckStatus();
+ },5000);
+}
+function tcBgValidateCards(list,target){
+ if(!Array.isArray(list)||list.length!==target)return null;
+ const seen=new Set(),out=[];
+ for(const raw of list){
+  const wanted=String(raw?.type||raw?.question_type||'').trim();
+  if(!['mcq','identification','enumeration','fillblank'].includes(wanted))return null;
+  const x=normalizeGeneratedFlashcard(raw,wanted);
+  if(!matchesFlashcardItemSchema(x,makeFlashcardResponseSchema(wanted).properties.flashcards.items))return null;
+  const q=clean(x.question),a=wanted==='enumeration'?(x.answer.map(clean).filter(Boolean).join('; ')):clean(x.answer),
+   page=Number(x.page),excerpt=clean(x.source_excerpt),opts=Array.isArray(x.choices)?x.choices.map(clean):[];
+  if(!q||!a||badQuestion(q)||seen.has(q.toLowerCase())||!Number.isInteger(page)||page<1||excerpt.length<10||excerpt.length>160)return null;
+  if(wanted==='mcq'&&(opts.length!==4||new Set(opts.map(z=>z.toLowerCase())).size!==4||!opts.some(z=>z.toLowerCase()===a.toLowerCase())))return null;
+  if(wanted==='enumeration'&&answerParts(a).length<2)return null;
+  if(wanted==='fillblank'&&((q.match(/____/g)||[]).length!==1))return null;
+  seen.add(q.toLowerCase());
+  out.push({q,a,opts:wanted==='mcq'?opts:[],type:wanted,page,excerpt,pdf:''});
+ }
+ return out;
+}
+function tcBgImportCompletedSets(payload,job){
+ // The backend MUST verify page/excerpt traceability before declaring a set complete.
+ // This client checks shape too, but cannot independently re-check PDF text after reload.
+ const result=Array.isArray(payload.sets)?payload.sets:[];
+ const stamp=Number(job.startedAt)||Date.now();
+ const label=new Date(stamp).toLocaleString('en-PH',{year:'numeric',month:'short',day:'numeric',hour:'numeric',minute:'2-digit'});
+ let count=0;
+ for(const set of result){
+  const index=Number(set?.setNumber??set?.index);
+  const setNum=Number.isInteger(index)&&index>=1&&index<=job.sets?index:
+    Number.isInteger(index)&&index>=0&&index<job.sets?index+1:null;
+  if(!setNum)continue;
+  if(set.completed!==true&&set.status!=='completed')continue;
+  const deckId=`background:${job.id}:set:${setNum}`;
+  if(cards.some(c=>c.deck===deckId))continue; // idempotent across refresh/crashes
+  const list=tcBgValidateCards(set.cards,job.cardsPerSet);
+  if(!list){console.warn('[TraceCard AI] Background result not imported: invalid or incomplete set',setNum);continue;}
+  const name=`Set ${setNum} - ${label}`;
+  cards.push(...list.map(c=>({...c,pdf:job.pdfName,id:uid(),deck:deckId,name,status:'pending',next:null})));
+  count++;
+ }
+ if(count)save();
+ return count;
+}
+async function tcBgCheckStatus(){
+ const job=tcBgGet();if(!job||tcBgChecking)return;
+ tcBgChecking=true;$('tcBgRefresh').disabled=true;
+ try{
+  const res=await fetch(`${tcBgBase}/${encodeURIComponent(job.id)}`,{headers:{'Accept':'application/json'},cache:'no-store'});
+  if(!res.ok)throw Error(res.status===404?'Saved job no longer found on server. Its retention period may have expired.':`Server status ${res.status}`);
+  const data=await res.json();
+  if(String(data.jobId||data.id||'')!==job.id)throw Error('Server returned the wrong generation job.');
+  const total=job.sets*job.cardsPerSet;
+  const saved=Math.max(0,Math.min(total,Number(data.savedCards??data.completedCards??0)||0));
+  const status=String(data.status||'queued').toLowerCase();
+  const imported=tcBgImportCompletedSets(data,job);
+  if(status==='completed'||status==='succeeded'||status==='done'){
+   const importedSets=Array.from({length:job.sets},(_,i)=>`background:${job.id}:set:${i+1}`).filter(d=>cards.some(c=>c.deck===d)).length;
+   if(importedSets===job.sets){
+    tcProgressDisplay(total,total,'complete','Background generation finished. Open Flashcard Sets to review and approve.');
+    tcBgAlert('Flashcards ready',`${job.sets} set(s) finished. Your flashcards are saved on this device.`,false);
+    $('info').textContent='Background generation complete. View Flashcard Sets to validate the results.';
+    tcBgRemember(null);tcBgStopPolling();tcBgBusy(false);draw();
+    return;
+   }
+   tcProgressDisplay(saved,total,'saved',`${importedSets}/${job.sets} completed sets imported.`);
+   tcBgRemember({...job,lastStatus:'failed'});
+   tcBgAlert('Generation finished, but some sets need attention',`Only ${importedSets} of ${job.sets} sets passed the import checks. Please check the server logs. You may start a new job using the same PDF.`,true);
+   tcBgStopPolling();tcBgBusy(false);return;
+  }
+  if(status==='failed'||status==='cancelled'){
+   tcBgRemember({...job,lastStatus:'failed'});
+   tcProgressDisplay(saved,total,'saved','The server stopped this generation. Completed sets remain saved.');
+   tcBgAlert('Generation stopped',String(data.message||data.error||'The server could not complete the job. You can try again.'),true);
+   $('info').textContent='Background job stopped. Completed sets have been kept.';
+   tcBgStopPolling();tcBgBusy(false);return;
+  }
+  tcProgressDisplay(saved,total,'working',`${status==='queued'?'Waiting in server queue':'Generating on the server'} — you can leave this website and return later.`);
+  tcBgAlert('Background generation in progress',`${saved} of ${total} cards saved on the server. You can open another app or close this browser tab.`,true);
+  tcBgBusy(true);tcBgStartPolling();
+  if(imported)$('info').textContent=`${imported} completed set(s) added from your background job.`;
+ }catch(err){
+  tcBgAlert('Could not check generation status',`${err.message} The saved job ID is still on this device; use Check status later.`,true);
+  tcBgStartPolling();
+  console.warn('[TraceCard AI] Background status check failed',err.message);
+ }finally{tcBgChecking=false;$('tcBgRefresh').disabled=false;}
+}
+async function tcBgIsAvailable(){
+ try{
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),3500);
+  try{
+   const r=await fetch(`${tcBgBase}/capabilities`,{signal:controller.signal,cache:'no-store'});
+   if(!r.ok)return false;
+   const data=await r.json();
+   return data?.enabled===true&&data?.persistent===true&&Number(data.version)===1;
+  }finally{clearTimeout(timer);}
+ }catch{return false;}
+}
+async function tcTryStartBackgroundGeneration(){
+ let job=tcBgGet();
+ if(job){
+  if(!['failed','cancelled'].includes(job.lastStatus||'')){
+   tcBgAlert('Existing background job',`Your earlier job is still linked to this browser. Check its status before starting another.`,true);
+   await tcBgCheckStatus();return true;
+  }
+ }
+ if(!await tcBgIsAvailable())return false;
+ const sets=Number($('count').value),cardsPerSet=Number($('cardAmount').value),questionType=$('questionType').value;
+ if(!pages.some(p=>p.text.length>50)){$('info').textContent='The PDF has no readable pages.';return true;}
+ tcBgBusy(true);
+ tcProgressDisplay(0,sets*cardsPerSet,'working','Sending the extracted PDF text to the background generation server...');
+ tcBgAlert('Starting background generation','Creating a server job. Keep this page open until a job ID is confirmed.',false);
+ try{
+  // Only text already extracted client-side is sent. The original PDF binary is not uploaded.
+  const body={pdfName:fileName,fileSignature:sourceSignature(),pages:pages.map(p=>({page:p.page,text:p.text})),questionType,sets,cardsPerSet};
+  const res=await fetch(tcBgBase,{method:'POST',headers:{'Content-Type':'application/json','Accept':'application/json'},body:JSON.stringify(body)});
+  const data=await res.json().catch(()=>({}));
+  if(!res.ok)throw Error(data.error||data.message||`Background job request failed (${res.status})`);
+  const jobId=data.jobId||data.id;
+  if(typeof jobId!=='string'||jobId.length<12)throw Error('Server did not return a usable job ID.');
+  job={id:jobId,pdfName:fileName,sets,cardsPerSet,questionType,startedAt:Date.now()};
+  tcBgRemember(job);
+  tcBgAlert('Background generation started',`Job created for ${sets*cardsPerSet} flashcards. You can now safely switch apps or close the tab.`,true);
+  $('info').textContent='Background generation started. Your progress is saved on the server.';
+  await tcBgCheckStatus();
+ }catch(err){
+  tcBgAlert('Background job was not confirmed',`${err.message}. Please check your server before retrying to avoid duplicate jobs.`,false);
+  $('info').textContent='Could not confirm background generation: '+err.message;
+  tcBgBusy(false);
+ }
+ return true;
+}
+$('tcBgRefresh').onclick=()=>tcBgCheckStatus();
+document.addEventListener('visibilitychange',()=>{if(!document.hidden&&tcBgGet())tcBgCheckStatus();});
+window.addEventListener('pageshow',()=>{if(tcBgGet())tcBgCheckStatus();});
+function tcBgRestoreAfterLoad(){
+ const job=tcBgGet();if(!job)return;
+ tcBgAlert('Checking saved background job',`Looking up the generation for ${job.pdfName}...`,true);
+ tcBgBusy(true);tcBgCheckStatus();
+}
+
 $('make').onclick=async()=>{
  if(!doc)return;
+ if(await tcTryStartBackgroundGeneration())return;
  const amount=+$('count').value;
  const generationDate=Date.now();
  const target=+$('cardAmount').value;
@@ -2585,7 +2848,7 @@ $('make').onclick=async()=>{
  button.disabled=true;
  tcGenerationRunning=true;
  button.textContent='Generating...';
- tcProgressDisplay(0,amount*target,'working','Checking saved progress and generating valid flashcards...');
+ tcProgressDisplay(0,amount*target,'working','Browser-based generation: keep this tab open. Valid cards save locally as they are generated.');
  const readable=pages.filter(p=>p.text.length>50);
  const used=new Set(cards.filter(c=>c.pdf===fileName).map(c=>c.q.toLowerCase()));
  let completed=0, savedCount=0;
@@ -2710,6 +2973,7 @@ ${source}`;
 
 // CLEAR GENERATED DATA ONLY
 $('clear').onclick=()=>{
+ if(tcBgGet()){alert('Background generation is still linked to this browser. Wait until the server job finishes before clearing generated data.');return;}
  if(!confirm('Remove generated flashcards and unfinished generation progress? Review History, scores, and Recent Activity will be kept.'))return;
  const byDeck=new Map(activityArchive.map(r=>[r.deck,r]));
  for(const deck of [...new Set(cards.map(c=>c.deck))]){
@@ -3470,6 +3734,7 @@ $('pdf').addEventListener('change',()=>{setTimeout(()=>{$('generationSettings').
 
 
 tcNoticeSavedProgressOnReload();
+tcBgRestoreAfterLoad();
 
 // Header controls share the existing theme and navigation logic.
 document.getElementById('headerThemeToggle')?.addEventListener('click',()=>{
