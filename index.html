@@ -2461,6 +2461,13 @@ body[data-theme="dark"] #help .tc-faq-item summary:hover{color:#ffac75}
 @media(hover:hover) and (pointer:fine){
  #home .tc-help-panel:hover .tc-slide-dot.is-active span::after{animation-play-state:paused;}
 }
+/* The general .help-steps > div light background also styles the slideshow frame.
+   Override only that frame in Dark Mode so no white ring remains. */
+body[data-theme="dark"] #home #tcGettingStartedSlides > .tc-slide-rotator{
+  background:#18263e;
+  border-color:#33455f;
+  box-shadow:none;
+}
 body[data-theme="dark"] #home .tc-slide-arrow{background:#233651;border-color:#3b5574;color:#dbeaff;}
 body[data-theme="dark"] #home .tc-slide-arrow:hover{background:#284765;border-color:#6897c0;}
 body[data-theme="dark"] #home .tc-slide-dot span{background:#526786;}
