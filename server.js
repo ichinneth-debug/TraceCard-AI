@@ -1,8 +1,24 @@
 'use strict';
 
-require('dotenv').config();
+// Vercel supplies environment variables directly. Load .env only when available locally.
+try { require('dotenv').config(); } catch (error) {
+  if (error?.code !== 'MODULE_NOT_FOUND') throw error;
+}
 const express = require('express');
 const path = require('path');
+const IS_VERCEL = Boolean(process.env.VERCEL);
+// Vercel background scheduling is optional; status polling can finish batches
+// when the package or request context is unavailable.
+const TC_BACKEND_VERSION = 'research-redis-verification-2';
+let backgroundWaitUntil = null;
+if (IS_VERCEL) {
+  try {
+    const api = require('@vercel/functions');
+    if (typeof api.waitUntil === 'function') backgroundWaitUntil = api.waitUntil;
+  } catch {
+    console.warn('[TraceCard AI] Vercel waitUntil unavailable; using status-driven recovery.');
+  }
+}
 
 const app = express();
 app.disable('x-powered-by');
@@ -10,25 +26,24 @@ app.disable('x-powered-by');
 const PORT = Number(process.env.PORT || 3000);
 const PROVIDERS = [
   {
-    id: 'gemini',
-    key: process.env.GEMINI_API_KEY?.trim(),
-    model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash',
-  },
-  {
     id: 'groq',
     key: process.env.GROQ_API_KEY?.trim(),
     model: process.env.GROQ_MODEL?.trim() || 'openai/gpt-oss-20b',
   },
   {
-    id: 'openrouter',
-    key: process.env.OPENROUTER_API_KEY?.trim(),
-    model: process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free',
+    id: 'gemini',
+    key: process.env.GEMINI_API_KEY?.trim(),
+    model: process.env.GEMINI_MODEL?.trim() || 'gemini-3.6-flash',
   },
-
   {
     id: 'openai',
     key: process.env.OPENAI_API_KEY?.trim(),
     model: process.env.OPENAI_MODEL?.trim() || 'gpt-4.1-mini',
+  },
+  {
+    id: 'openrouter',
+    key: process.env.OPENROUTER_API_KEY?.trim(),
+    model: process.env.OPENROUTER_MODEL?.trim() || 'openrouter/free',
   },
 ];
 
@@ -47,7 +62,7 @@ function boundedInteger(name, fallback, minimum, maximum) {
   return Math.max(minimum, Math.min(maximum, Math.floor(value)));
 }
 
-const MAX_ACTIVE = boundedInteger('AI_CONCURRENCY', 3, 1, 20);
+const MAX_ACTIVE = boundedInteger('AI_CONCURRENCY', 5, 1, 20);
 const MAX_QUEUE = boundedInteger('AI_QUEUE_LIMIT', 80, 1, 500);
 const MAX_QUEUE_WAIT_MS = boundedInteger('AI_QUEUE_WAIT_MS', 180000, 5000, 600000);
 const PROVIDER_TIMEOUT_MS = boundedInteger('AI_TIMEOUT_MS', 25000, 5000, 120000);
@@ -133,24 +148,41 @@ function runQueue() {
   }
 }
 
-// Verify excerpts against the PAGE N text sent in the request, where available.
-// This mirrors the browser's traceability check without logging any PDF contents.
+// Keep strict page + 10-160 character checks, but tolerate punctuation/dash differences.
+// Checking both forms handles "sodium-potassium" vs "sodium potassium" while
+// rejecting excerpts that are not actually present on the referenced PDF page.
+function normalizeExcerptText(value, punctuationAsSpace = false) {
+  const text = String(value ?? '').normalize('NFKC').toLowerCase();
+  const normalized = punctuationAsSpace
+    ? text.replace(/[^\p{L}\p{N}\p{M}\s]/gu, ' ')
+    : text.replace(/[^\p{L}\p{N}\p{M}\s]/gu, '');
+  return normalized.replace(/\s+/g, ' ').trim();
+}
+function sourceExcerptOnPage(pageText, excerpt) {
+  if (typeof excerpt !== 'string' || excerpt.length < 10 || excerpt.length > 160 ||
+      typeof pageText !== 'string') return false;
+  const plainExcerpt = normalizeExcerptText(excerpt);
+  // Do not accept excerpts made of only punctuation/whitespace.
+  if (plainExcerpt.replace(/\s/g, '').length < 8) return false;
+  return normalizeExcerptText(pageText).includes(plainExcerpt) ||
+    normalizeExcerptText(pageText, true).includes(normalizeExcerptText(excerpt, true));
+}
+// Validate excerpts against the matching PAGE N text in ordinary API prompts.
 function quotedInSource(prompt, page, excerpt) {
   if (typeof prompt !== 'string') return true;
   const marker = /^PAGE (\d+):\s*/gm;
   const spans = [...prompt.matchAll(marker)];
   if (!spans.length) return true; // Legacy API calls without page-formatted source.
-  const normalize = value => String(value).replace(/\s+/g, ' ').trim().toLowerCase();
   for (let i = 0; i < spans.length; i++) {
     if (Number(spans[i][1]) !== page) continue;
     const start = spans[i].index + spans[i][0].length;
     const end = i + 1 < spans.length ? spans[i + 1].index : prompt.length;
-    if (normalize(prompt.slice(start, end)).includes(normalize(excerpt))) return true;
+    if (sourceExcerptOnPage(prompt.slice(start, end), excerpt)) return true;
   }
   return false;
 }
 
-function parseFlashcards(raw, requestedType = null, prompt = null) {
+function parseFlashcards(raw, requestedType = null, prompt = null, sourcePages = null) {
   let value = raw;
   if (typeof value === 'string') {
     const text = value.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
@@ -172,6 +204,9 @@ function parseFlashcards(raw, requestedType = null, prompt = null) {
     : Array.isArray(value?.cards) ? value.cards : null;
   if (!list?.length) throw new AIError('Provider returned no flashcards.', 502);
 
+  // Background jobs validate against the full PDF, not just the five-page prompt window.
+  const pagesByNumber = Array.isArray(sourcePages)
+    ? new Map(sourcePages.map(p => [p.page, p.text])) : null;
   const reasons = { format: 0, type: 0, answer: 0, source: 0 };
   const valid = [];
   const aliases = {
@@ -191,7 +226,10 @@ function parseFlashcards(raw, requestedType = null, prompt = null) {
     if (!question || !Number.isInteger(page) || page < 1 || !Array.isArray(choices)) {
       reasons.format++; continue;
     }
-    if (excerpt.length < 10 || excerpt.length > 160 || !quotedInSource(prompt, page, excerpt)) {
+    const excerptValid = pagesByNumber
+      ? sourceExcerptOnPage(pagesByNumber.get(page), excerpt)
+      : quotedInSource(prompt, page, excerpt);
+    if (excerpt.length < 10 || excerpt.length > 160 || !excerptValid) {
       reasons.source++; continue;
     }
     let answer = input.answer ?? input.a;
@@ -330,6 +368,7 @@ async function askChatCompletion(provider, prompt, schema, signal = null) {
   if (provider.id === 'groq') {
 
     const strictSupported = /^openai\/gpt-oss-(?:20b|120b)$/i.test(provider.model);
+    if (strictSupported) body.reasoning_effort = 'low';
     body.response_format = strictSupported
       ? { type: 'json_schema', json_schema: { name: 'tracecard_flashcards', strict: true, schema } }
       : { type: 'json_object' };
@@ -369,7 +408,7 @@ function recordFailure(provider, error) {
   console.warn(`[TraceCard AI] ${provider.id} failed: ${status || 'network/format error'}`);
 }
 
-async function generateFlashcards(prompt, requestedType = 'mcq', signal = null) {
+async function generateFlashcards(prompt, requestedType = 'mcq', signal = null, sourcePages = null) {
   const schema = buildResponseSchema(requestedType);
   let tried = 0;
   for (const provider of PROVIDERS) {
@@ -382,28 +421,33 @@ async function generateFlashcards(prompt, requestedType = 'mcq', signal = null) 
       const raw = provider.id === 'gemini'
         ? await askGemini(provider, prompt, schema, signal)
         : await askChatCompletion(provider, prompt, schema, signal);
-      const cards = parseFlashcards(raw, requestedType, prompt);
+      let cards;
+      try { cards = parseFlashcards(raw, requestedType, prompt, sourcePages); }
+      catch (error) { error.validationFailure = true; throw error; }
       console.info(`[TraceCard AI] ${provider.id}: ${cards.length} valid ${requestedType} cards in ${Date.now()-startedAt}ms`);
       return cards;
     } catch (error) {
       if (signal?.aborted || error?.status === 499) throw new AIError('Generation cancelled.', 499);
-      recordFailure(provider, error);
+      if (error.validationFailure) console.warn(`[TraceCard AI] ${provider.id}: response failed card validation; trying fallback`);
+      else recordFailure(provider, error);
     }
   }
   const configured = PROVIDERS.some(p => p.key);
   if (!configured) {
     throw new AIError('No AI provider configured. Add API keys to your server .env file.', 503);
   }
-  if (!tried) {
-    throw new AIError('All AI providers are temporarily cooling down. Try again shortly.', 503);
-  }
-  throw new AIError('All AI providers failed or are unavailable. Please try again later.', 503);
+  const availableAt = Math.min(...PROVIDERS.filter(p => p.key).map(p => Math.max(Date.now(), cooldownUntil.get(p.id) || 0)));
+  const error = new AIError(tried ? 'All AI providers failed or are unavailable. Please try again later.' : 'All AI providers are temporarily cooling down. Try again shortly.', 503);
+  error.retryAfterMs = Math.max(0, availableAt - Date.now());
+  error.cooldownOnly = !tried;
+  throw error;
 }
 
 app.get('/api/health', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({
     ok: true,
+    backendVersion: TC_BACKEND_VERSION,
     aiConfigured: PROVIDERS.some(p => Boolean(p.key)),
     providers: PROVIDERS.map(p => ({
       name: p.id,
@@ -411,6 +455,7 @@ app.get('/api/health', (req, res) => {
       available: Boolean(p.key) && (cooldownUntil.get(p.id) || 0) <= Date.now(),
     })),
     concurrency: { active, queued: queue.length, maximum: MAX_ACTIVE },
+    background: { configured: BG_CONFIGURED, mode: IS_VERCEL ? (typeof backgroundWaitUntil === 'function' ? 'vercel-waitUntil' : 'status-driven') : 'worker', globalConcurrency: BG_CONCURRENCY, batchSize: BG_BATCH_SIZE },
   });
 });
 
@@ -449,10 +494,17 @@ const BG_PREFIX = 'tracecard:bg:v1:';
 const BG_DUE_KEY = BG_PREFIX + 'due';
 const BG_TTL_SECONDS = 7 * 24 * 60 * 60;
 // One batch can attempt several providers serially; lease must cover their combined timeouts.
-const BG_LEASE_SECONDS = Math.ceil(PROVIDER_TIMEOUT_MS / 1000) * Math.max(1,PROVIDERS.filter(p=>p.key).length) + 90;
-const BG_CONCURRENCY = boundedInteger('BG_CONCURRENCY', 2, 1, 5);
+const BG_BATCH_DEADLINE_MS = boundedInteger('BG_BATCH_DEADLINE_MS', 45000, 10000, 90000);
+const BG_LEASE_SECONDS = Math.ceil(BG_BATCH_DEADLINE_MS / 1000) + 65;
+const BG_CONCURRENCY = Math.min(MAX_ACTIVE, boundedInteger('BG_CONCURRENCY', 5, 1, 15));
+const BG_BATCH_SIZE = boundedInteger('BG_BATCH_SIZE', 10, 5, 15);
+const BG_SLOT_KEY = BG_PREFIX + 'worker-slots';
+// Maximum time to start more batches within one Vercel invocation.
+const BG_VERCEL_RUN_MS = boundedInteger('BG_VERCEL_RUN_MS', 45000, 5000, 120000);
 const BG_MAX_SOURCE_CHARS = boundedInteger('BG_MAX_SOURCE_CHARS', 120000, 10000, 250000);
 const BG_POLL_MS = boundedInteger('BG_POLL_MS', 3500, 2000, 15000);
+const BG_MAX_ATTEMPTS_PER_SET = boundedInteger('BG_MAX_ATTEMPTS_PER_SET', 6, 1, 20);
+const BG_MAX_STALLS = boundedInteger('BG_MAX_STALLS', 5, 1, 15);
 let bgActive = 0;
 let bgTimer = null;
 let bgTickRunning = false;
@@ -500,18 +552,36 @@ else
   redis.call('ZADD', KEYS[3], ARGV[6], ARGV[5])
 end
 return 1`;
-const BG_UNLOCK_SCRIPT = `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0`;
+// Atomically claim a due job AND a global slot (across Vercel instances).
+// Redis server time avoids different invocation clocks affecting lease expiry.
+const BG_CLAIM_SCRIPT = `
+local t = redis.call('TIME')
+local now = tonumber(t[1])*1000 + math.floor(tonumber(t[2])/1000)
+redis.call('ZREMRANGEBYSCORE', KEYS[3], '-inf', now)
+local due = redis.call('ZSCORE', KEYS[2], ARGV[3])
+if not due or tonumber(due) > now then return 0 end
+if redis.call('EXISTS', KEYS[1]) == 1 then return 0 end
+if redis.call('ZCARD', KEYS[3]) >= tonumber(ARGV[4]) then return 0 end
+local untilMs = now + tonumber(ARGV[2])*1000
+redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2])
+redis.call('ZADD', KEYS[3], untilMs, ARGV[1])
+redis.call('ZADD', KEYS[2], untilMs, ARGV[3])
+return 1`;
+const BG_UNLOCK_SCRIPT = `
+redis.call('ZREM', KEYS[2], ARGV[1])
+if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end
+return 0`;
 async function bgSaveClaimed(job, token, nextRunAt) {
   job.updatedAt = Date.now();
   const done = ['completed', 'failed', 'cancelled'].includes(job.status);
   const result = await bgRedis('EVAL', BG_SAVE_SCRIPT, 4,
     bgKey(job.id), bgLockKey(job.id), BG_DUE_KEY, bgCancelKey(job.id),
     token, JSON.stringify(job), BG_TTL_SECONDS, done ? 'done' : 'due', job.id, nextRunAt);
-  if (Number(result) === 2) return; // User cancelled: do not save an in-flight batch.
+  if (Number(result) === 2) return;
   if (Number(result) !== 1) throw new AIError('Background job lease expired; will recover from checkpoint.', 503);
 }
 async function bgUnlock(id, token) {
-  try { await bgRedis('EVAL', BG_UNLOCK_SCRIPT, 1, bgLockKey(id), token); }
+  try { await bgRedis('EVAL', BG_UNLOCK_SCRIPT, 2, bgLockKey(id), BG_SLOT_KEY, token); }
   catch { /* The expiring lock safely releases itself. */ }
 }
 function bgPublic(job) {
@@ -539,7 +609,12 @@ function bgNextType(set, counts) {
   return Object.keys(counts).find(t => set.cards.filter(c => c.type === t).length < counts[t]);
 }
 function bgBadQuestion(q) {
-  return /\b(?:page|slide|section|chapter|unit)\s*(?:no\.?\s*|number\s*|#\s*)?\d+\b|\b(?:pdf|this document|the document|this lecture|the lecture|this module|the module|the handout|uploaded file|source text)\b|\b(?:according to|as stated in|as shown in|listed under|listed on|found on|mentioned in|taken from|based on the)\b|\b(?:who (?:wrote|authored|prepared|owns|published)|who (?:is|was) the (?:author|owner|instructor|professor|publisher)|(?:name|identify) the (?:author|owner|instructor|professor|publisher)|copyright|all rights reserved|prepared by|submitted by|written by)\b/i.test(q);
+  const question = String(q || '');
+
+  return /\b(?:page|slide)\s*(?:no\.?\s*|number\s*|#\s*)?\d+\b/i.test(question) ||
+    /\b(?:this|the|uploaded|provided)\s+(?:pdf|document|file|slides?|lecture|module|handout)\b/i.test(question) ||
+    /\b(?:in|on|from|of|according to|as (?:shown|stated|described) in|based on)\s+(?:(?:the|this|provided|uploaded)\s+)?(?:pages?|slides?|pdf|document|file|source text)\b/i.test(question) ||
+    /\b(?:who (?:wrote|authored|prepared|published)|(?:name|identify) the (?:author|owner|instructor|professor|publisher)|copyright|all rights reserved|prepared by|submitted by|written by)\b/i.test(question);
 }
 function bgPrompt(job, set, wanted, count) {
   const skip = set.attempts || 0;
@@ -559,12 +634,12 @@ function bgPrompt(job, set, wanted, count) {
     `Avoid these already-generated questions: ${JSON.stringify(avoided)}\n` +
     source;
 }
-function bgVerifyCard(card, job, chosenPages, used) {
+function bgVerifyCard(card, job, used) {
   if (bgBadQuestion(card.question) || used.has(card.question.trim().toLowerCase())) return false;
+  if (!Number.isInteger(card.page) || card.page < 1) return false;
   const sourcePage = job.pages.find(p => p.page === card.page);
-  if (!sourcePage || !chosenPages.includes(card.page)) return false;
-  const norm = s => String(s).replace(/\s+/g, ' ').trim().toLowerCase();
-  return norm(sourcePage.text).includes(norm(card.source_excerpt));
+
+  return Boolean(sourcePage && sourceExcerptOnPage(sourcePage.text, card.source_excerpt));
 }
 async function bgProcessBatch(job, signal = null) {
   const set = job.sets.find(s => s.status !== 'completed');
@@ -573,71 +648,124 @@ async function bgProcessBatch(job, signal = null) {
   const type = bgNextType(set, quota);
   if (!type) {
     set.status = 'completed';
+    set.completedAt = set.completedAt || Date.now();
     if (job.sets.every(s => s.status === 'completed')) job.status = 'completed';
     return 0;
   }
-  // A full 10-card set can finish in one AI call when the provider returns valid cards.
-  const want = Math.min(10, quota[type] - set.cards.filter(c => c.type === type).length);
-  const selection = Array.from({ length: Math.min(5, job.pages.length) }, (_, i) =>
-    job.pages[(set.setNumber * 3 + (set.attempts || 0) * 5 + i) % job.pages.length].page);
+
+  const want = Math.min(BG_BATCH_SIZE, quota[type] - set.cards.filter(c => c.type === type).length);
   const prompt = bgPrompt(job, set, type, want);
   set.attempts++;
-  const batch = await queueTask(() => generateFlashcards(prompt, type, signal));
+  // The Redis slot is the concurrency limit for background requests. Do not
+  // also wait in the legacy in-memory queue while holding a timed lease.
+  let batch;
+  try { batch = await generateFlashcards(prompt, type, signal, job.pages); }
+  catch (error) {
+    if (error.cooldownOnly) set.attempts--; // No AI request was actually made.
+    throw error;
+  }
   const used = new Set(job.sets.flatMap(s => s.cards.map(c => c.question.trim().toLowerCase())));
   let added = 0;
   for (const card of batch) {
     if (set.cards.length >= job.cardsPerSet) break;
     if (set.cards.filter(c => c.type === type).length >= quota[type]) break;
-    if (!bgVerifyCard(card, job, selection, used)) continue;
+    if (!bgVerifyCard(card, job, used)) continue;
     set.cards.push(card);
     used.add(card.question.trim().toLowerCase());
     added++;
   }
-  if (set.cards.length === job.cardsPerSet) set.status = 'completed';
+  if (set.cards.length === job.cardsPerSet) { set.status = 'completed'; set.completedAt = set.completedAt || Date.now(); }
   if (job.sets.every(s => s.status === 'completed')) {
     job.status = 'completed';
     job.message = 'All flashcards generated.';
   } else job.status = 'running';
+  console.info(`[TraceCard AI] Batch validation: requested=${want}, returned=${batch.length}, accepted=${added}`);
   return added;
+}
+function bgRetryLimitReached(job) {
+  const currentSet = job.sets.find(s => s.status !== 'completed');
+  return (job.stalls || 0) >= BG_MAX_STALLS ||
+    Boolean(currentSet && (currentSet.attempts || 0) >= job.cardsPerSet + BG_MAX_ATTEMPTS_PER_SET);
 }
 async function bgRunOneJob(id) {
   const token = crypto.randomBytes(20).toString('hex');
-  const locked = await bgRedis('SET', bgLockKey(id), token, 'EX', BG_LEASE_SECONDS, 'NX');
-  if (locked !== 'OK') return;
+  const locked = await bgRedis('EVAL', BG_CLAIM_SCRIPT, 3, bgLockKey(id), BG_DUE_KEY, BG_SLOT_KEY,
+    token, BG_LEASE_SECONDS, id, BG_CONCURRENCY);
+  if (Number(locked) !== 1) return false;
   try {
     const job = await bgGet(id);
     if (!job || ['completed', 'failed', 'cancelled'].includes(job.status)) {
       await bgRedis('ZREM', BG_DUE_KEY, id);return;
     }
-    // Other workers will not claim the same job during this provider request.
-    await bgRedis('ZADD', BG_DUE_KEY, Date.now() + BG_LEASE_SECONDS * 1000, id);
+
     job.status = 'running';
     const aborter = new AbortController();
     bgRunningControllers.set(id, aborter);
-    let nextRunAt = Date.now() + 250;
+    let nextRunAt = Date.now();
+    const timer = setTimeout(() => aborter.abort(), BG_BATCH_DEADLINE_MS);
+    const before = job.sets.reduce((n,s)=>n+s.cards.length,0);
+    const batchStarted = Date.now();
     try {
       const added = await bgProcessBatch(job, aborter.signal);
       job.failures = 0;
-      job.stalls = added > 0 ? 0 : (job.stalls || 0) + 1;
-      const attempts = job.sets.reduce((n,s) => n+s.attempts,0);
-      if (job.stalls >= 8 || attempts >= 100) {
-        job.status = 'failed';
-        job.message = 'Generation stopped because the AI could not produce enough valid, unique source-linked cards.';
+      if (job.status === 'running') {
+        job.stalls = added > 0 ? 0 : (job.stalls || 0) + 1;
+        if (bgRetryLimitReached(job)) {
+          job.status = 'failed';
+          job.message = 'Generation stopped after reaching the retry limit. Completed sets are saved; incomplete sets are not shown.';
+        }
       }
-      // Keep student jobs fair: one batch at a time, next turn goes to queue.
+
     } catch (e) {
-      job.failures = (job.failures || 0) + 1;
-      const delay = Math.min(180000, 10000 * 2 ** Math.min(job.failures - 1, 5));
+      if (!e?.cooldownOnly) job.failures = (job.failures || 0) + 1;
+      const delay = Math.min(300000, Math.max(e?.retryAfterMs || 0, 3000 * 2 ** Math.min(Math.max(0,(job.failures || 0)-1), 5)));
       nextRunAt = Date.now() + delay;
-      if (job.failures >= 9) {
+      if (!e?.cooldownOnly && (job.failures >= BG_MAX_ATTEMPTS_PER_SET || bgRetryLimitReached(job))) {
         job.status = 'failed';
-        job.message = 'The AI providers remained unavailable. Completed sets have been saved.';
+        job.message = 'Generation stopped after repeated AI failures. Completed sets are saved; incomplete sets are not shown.';
       }
       console.warn(`[TraceCard AI] Background batch failed (${e?.status || 'provider'}); retry ${job.failures}`);
-    }
+    } finally { clearTimeout(timer); }
     await bgSaveClaimed(job, token, nextRunAt);
+    const after = job.sets.reduce((n,s)=>n+s.cards.length,0);
+    console.info(`[TraceCard AI] Batch checkpoint: +${after-before}, ${after}/${job.setCount*job.cardsPerSet} saved, ${Date.now()-batchStarted}ms, ${job.status}`);
+    return job.status === 'running' && job.failures === 0 && after > before;
   } finally { bgRunningControllers.delete(id); await bgUnlock(id, token); }
 }
+// Vercel does not run a permanent setInterval worker. Resume the specific
+// saved job from both the creation request and status polling. waitUntil tracks
+// the promise, including the actual AI request and Redis checkpoint.
+const bgVercelRuns = new Map();
+async function bgRunVercelWindow(id) {
+  const stopStartingAt = Date.now() + BG_VERCEL_RUN_MS;
+  do {
+    const more = await bgRunOneJob(id);
+    if (!more) break;
+    // A checkpoint has been committed and the lock released before the next batch.
+  } while (Date.now() < stopStartingAt);
+}
+function bgKickVercel(id) {
+  if (bgVercelRuns.has(id)) return true;
+  if (typeof backgroundWaitUntil !== 'function') return false;
+  // Register a deferred task before starting work. A missing/invalid request
+  // context must not leave a saved job unconfirmed or start an untracked batch.
+  let release;
+  const gate = new Promise(resolve => { release = resolve; });
+  const task = gate.then(start => start ? bgRunVercelWindow(id) : undefined)
+    .catch(e => console.warn(`[TraceCard AI] Vercel job worker: ${e?.message || 'error'}`))
+    .finally(() => { if (bgVercelRuns.get(id) === task) bgVercelRuns.delete(id); });
+  try {
+    backgroundWaitUntil(task);
+    bgVercelRuns.set(id, task);
+    release(true);
+    return true;
+  } catch {
+    release(false);
+    console.warn('[TraceCard AI] Vercel scheduling unavailable; status requests will process the job.');
+    return false;
+  }
+}
+
 async function bgTick() {
   if (!BG_CONFIGURED || bgTickRunning || bgActive >= BG_CONCURRENCY) return;
   bgTickRunning = true;
@@ -651,8 +779,7 @@ async function bgTick() {
       void bgRunOneJob(id).catch(e => console.warn(`[TraceCard AI] Background worker: ${e?.message || 'error'}`))
         .finally(() => {
           bgActive--;bgLocalProcessing.delete(id);
-          // Skip the idle 3.5s polling gap between successful batches, without
-          // increasing the Redis polling frequency while the queue is empty.
+
           const next=setTimeout(() => { void bgTick(); }, 450);
           next.unref?.();
         });
@@ -677,7 +804,7 @@ function bgBasicRateLimit(req) {
   if (now >= window.until) { window.count = 0; window.until = now + 60000; }
   window.count++;
   bgRate.set(key, window);
-  // Generous for classrooms sharing a single network IP.
+
   return window.count <= 60;
 }
 function bgValidateRequest(body) {
@@ -725,22 +852,20 @@ app.post('/api/generation-jobs', async (req, res) => {
       failures: 0, stalls: 0,
       sets: Array.from({ length: input.setCount }, (_, i) => ({setNumber:i+1, status:'queued', attempts:0, cards:[]})),
     };
-    // Atomically commit the job data and queue entry. Job IDs are high-entropy.
+
     const script = `redis.call('SET', KEYS[1], ARGV[1], 'EX', ARGV[2]); redis.call('ZADD', KEYS[2], ARGV[3], ARGV[4]); return 1`;
     await bgRedis('EVAL', script, 2, bgKey(id), BG_DUE_KEY,
       JSON.stringify(job), BG_TTL_SECONDS, Date.now(), id);
-    // Job is safely stored BEFORE sending a success response to the browser.
+
+    if (IS_VERCEL) bgKickVercel(id);
     res.status(202).json(bgPublic(job));
-    void bgTick();
+    if (!IS_VERCEL) void bgTick();
   } catch (e) {
     res.status([400, 413, 429, 503].includes(e?.status) ? e.status : 500)
       .json({ error: e?.message || 'Could not start background generation.' });
   }
 });
 
-// A job ID is a high-entropy bearer capability; never expose it in logs.
-// Cancellation stops future batches. An AI request already in flight may finish,
-// but its results cannot overwrite the cancelled checkpoint (BG_SAVE_SCRIPT).
 const BG_CANCEL_SCRIPT = `
 local raw = redis.call('GET', KEYS[1])
 if not raw then return 0 end
@@ -770,8 +895,7 @@ app.post('/api/generation-jobs/:jobId/cancel', async (req, res) => {
     const result = await bgRedis('EVAL', BG_CANCEL_SCRIPT, 3,
       bgKey(id), BG_DUE_KEY, bgCancelKey(id), BG_TTL_SECONDS, id, Date.now());
     if (Number(result) === 0) return res.status(404).json({error:'Job not found on this server/Redis instance. Verify Vercel server deployment and UPSTASH_REDIS_REST_URL.'});
-    // Abort a request in flight on this process. Other workers use Redis cancel flag
-    // and cannot save any later partial result after this atomic cancellation.
+
     if (Number(result) === 1 || Number(result) === 3) bgRunningControllers.get(id)?.abort();
     const job = await bgGet(id);
     if (!job) return res.status(404).json({error:'Job not found or expired.'});
@@ -783,19 +907,183 @@ app.get('/api/generation-jobs/:jobId', async (req, res) => {
   res.set('Cache-Control', 'no-store');
   if (!bgSafeJobID(req.params.jobId)) return res.status(404).json({error:'Job not found.'});
   try {
-    const job = await bgGet(req.params.jobId);
+    const id = req.params.jobId;
+    let job = await bgGet(id);
     if (!job) return res.status(404).json({error:'Job not found or expired.'});
+    if (IS_VERCEL && !['completed','failed','cancelled'].includes(job.status)) {
+      if (!bgKickVercel(id)) {
+        // No new package needed for this fallback: finish one batch while the
+        // HTTP request is alive. Redis locks prevent duplicate processing.
+        await bgRunOneJob(id);
+        job = await bgGet(id) || job;
+      }
+    }
     return res.json(bgPublic(job));
   } catch (e) { return res.status(503).json({error:e?.message || 'Job status unavailable.'}); }
 });
 
+// Research participation verification (no account or additional AI calls).
+// Job IDs remain bearer capabilities; never expose them in the completion code.
+const TC_PROOF_PREFIX = 'tracecard:research:v1:';
+const TC_PROOF_TTL = 90 * 24 * 60 * 60;
+const TC_PROOF_MIN = 10;
+const tcProofSessionKey = id => TC_PROOF_PREFIX + 'session:' + id;
+const tcProofJobKey = id => TC_PROOF_PREFIX + 'job:' + id;
+const tcProofCodeKey = code => TC_PROOF_PREFIX + 'code:' + code;
+const tcProofID = id => typeof id === 'string' && /^[a-f0-9]{32}$/.test(id);
+const TC_PROOF_EVENT_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return {'missing'} end
+local session = cjson.decode(raw)
+local idx = tonumber(ARGV[1])
+local pos = nil
+for i, v in ipairs(session.indices) do if v == idx then pos = i; break end end
+if not pos then return {'invalid'} end
+local eventKey = tostring(idx)
+if not session.events[eventKey] then
+  if pos ~= session.reviewed + 1 then return {'order'} end
+  session.events[eventKey] = {at=tonumber(ARGV[2]), rating=ARGV[3]}
+  session.reviewed = session.reviewed + 1
+end
+if session.reviewed < #session.indices then
+  redis.call('SET', KEYS[1], cjson.encode(session), 'EX', ARGV[4])
+  return {'progress', tostring(session.reviewed)}
+end
+local code = redis.call('GET', KEYS[2])
+if not code then
+  if redis.call('EXISTS', KEYS[3]) == 1 then return {'collision'} end
+  code = ARGV[5]
+  local record = {code=code, jobHash=ARGV[6], setNumber=session.setNumber,
+    generatedCards=session.generatedCards, reviewedCards=session.reviewed,
+    generationRequestedAt=session.generationRequestedAt, generationCompletedAt=session.generationCompletedAt,
+    approvalReportedAt=session.startedAt, approvedCardsReported=#session.indices,
+    reviewStartedAt=session.startedAt, completedAt=tonumber(ARGV[2]), status='verified', emailStatus='unbound'}
+  redis.call('SET', KEYS[3], cjson.encode(record), 'EX', ARGV[4])
+  redis.call('SET', KEYS[2], code, 'EX', ARGV[4])
+end
+session.code = code
+redis.call('SET', KEYS[1], cjson.encode(session), 'EX', ARGV[4])
+return {'complete', code, tostring(session.reviewed)}`;
+
+app.post('/api/research/review/start', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { jobId, setNumber, sessionId, indices } = req.body || {};
+  if (!BG_CONFIGURED) return res.status(503).json({error:'Verification storage unavailable.'});
+  if (!bgSafeJobID(jobId) || !tcProofID(sessionId) || !Number.isInteger(setNumber) ||
+      !Array.isArray(indices) || indices.length < TC_PROOF_MIN || indices.length > 30 ||
+      indices.some(i => !Number.isInteger(i) || i < 0) || new Set(indices).size !== indices.length)
+    return res.status(400).json({error:'Review at least 10 approved cards from one generated set.'});
+  try {
+    const key = tcProofSessionKey(sessionId);
+    const existing = await bgRedis('GET', key);
+    if (existing) {
+      const old = JSON.parse(existing);
+      if (old.jobId !== jobId || old.setNumber !== setNumber || JSON.stringify(old.indices) !== JSON.stringify(indices))
+        return res.status(409).json({error:'Review session does not match.'});
+      return res.json({ok:true});
+    }
+    const job = await bgGet(jobId);
+    const set = job?.sets?.find(s => s.setNumber === setNumber && s.status === 'completed');
+    if (!set || !Array.isArray(set.cards) || set.cards.length !== job.cardsPerSet ||
+        indices.some(i => i >= set.cards.length))
+      return res.status(404).json({error:'Completed generated set not found. Generate a new set to verify participation.'});
+    const proof = {jobId, setNumber, indices, generatedCards:set.cards.length,
+      generationRequestedAt:job.createdAt, generationCompletedAt:set.completedAt || null, startedAt:Date.now(), reviewed:0, events:{}};
+    const stored = await bgRedis('SET', key, JSON.stringify(proof), 'EX', TC_PROOF_TTL, 'NX');
+    if (stored !== 'OK') {
+      const raw = await bgRedis('GET',key);
+      const old = raw ? JSON.parse(raw) : null;
+      if (!old || old.jobId !== jobId || old.setNumber !== setNumber || JSON.stringify(old.indices) !== JSON.stringify(indices))
+        return res.status(409).json({error:'Review session does not match.'});
+    }
+    return res.json({ok:true});
+  } catch (e) { return res.status(503).json({error:'Verification temporarily unavailable. Try again.'}); }
+});
+
+app.post('/api/research/review/event', async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  const { sessionId, jobId, index, answer, rating } = req.body || {};
+  if (!BG_CONFIGURED) return res.status(503).json({error:'Verification storage unavailable.'});
+  if (!tcProofID(sessionId) || !bgSafeJobID(jobId) || !Number.isInteger(index) || index < 0 || index > 29 ||
+      typeof answer !== 'string' || !answer.trim() || answer.length > 20000 ||
+      !['Difficult','Partially Remembered','Remembered'].includes(rating))
+    return res.status(400).json({error:'Invalid review activity.'});
+  try {
+    const key = tcProofSessionKey(sessionId);
+    const raw = await bgRedis('GET', key);
+    const proof = raw ? JSON.parse(raw) : null;
+    if (!proof || proof.jobId !== jobId) return res.status(404).json({error:'Review verification session not found.'});
+    // Only server timestamps, card indices and recall ratings are stored; answer text is not retained here.
+    const hash = crypto.createHash('sha256').update(jobId).digest('hex');
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const code = 'TC-' + crypto.randomBytes(10).toString('hex').toUpperCase().match(/.{5}/g).join('-');
+      const result = await bgRedis('EVAL', TC_PROOF_EVENT_SCRIPT, 3, key, tcProofJobKey(hash), tcProofCodeKey(code),
+        index, Date.now(), rating, TC_PROOF_TTL, code, hash);
+      if (result?.[0] === 'collision') continue;
+      if (result?.[0] === 'progress') return res.json({ok:true,reviewed:Number(result[1])});
+      if (result?.[0] === 'complete') return res.json({ok:true,code:result[1],reviewed:Number(result[2])});
+      return res.status(409).json({error:'Review activity is missing or out of order.'});
+    }
+    return res.status(503).json({error:'Could not allocate a completion code. Retry verification.'});
+  } catch (e) { return res.status(503).json({error:'Verification temporarily unavailable. Try again.'}); }
+});
+
+// Bind the completed job's token to a self-reported survey email, once.
+// The email is not authenticated; researchers compare it with the survey response.
+const TC_PROOF_BIND_SCRIPT = `
+local raw = redis.call('GET', KEYS[1])
+if not raw then return {'missing'} end
+local session = cjson.decode(raw)
+if session.jobId ~= ARGV[1] or not session.code or session.reviewed < #session.indices then return {'incomplete'} end
+if session.code ~= ARGV[2] then return {'incomplete'} end
+local rawRecord = redis.call('GET', KEYS[2])
+if not rawRecord then return {'missing'} end
+local record = cjson.decode(rawRecord)
+if record.status ~= 'verified' or record.jobHash ~= ARGV[3] then return {'incomplete'} end
+if record.studentEmail and record.studentEmail ~= ARGV[4] then return {'bound'} end
+if not record.studentEmail then
+  record.studentEmail = ARGV[4]
+  record.emailStatus = 'self-reported'
+  record.emailBoundAt = tonumber(ARGV[5])
+  redis.call('SET', KEYS[2], cjson.encode(record), 'KEEPTTL')
+end
+return {'ok', session.code}`;
+// Claims are stored in Redis; the survey spreadsheet verifies them on form submission.
+app.post('/api/research/review/claim', async (req,res) => {
+  res.set('Cache-Control','no-store');
+  const {sessionId,jobId,email} = req.body || {};
+  const normalized = typeof email === 'string' ? email.trim().toLowerCase() : '';
+  if (!BG_CONFIGURED) return res.status(503).json({error:'Verification storage unavailable.'});
+  if (!tcProofID(sessionId) || !bgSafeJobID(jobId) || normalized.length > 254 || !/^[a-z0-9._%+\-]+@cvsu\.edu\.ph$/.test(normalized))
+    return res.status(400).json({error:'Enter your official CvSU email address (@cvsu.edu.ph).'});
+  try {
+    const key=tcProofSessionKey(sessionId), raw=await bgRedis('GET',key);
+    const proof=raw?JSON.parse(raw):null;
+    if (!proof || proof.jobId!==jobId || !/^TC-(?:[A-F0-9]{5}-){3}[A-F0-9]{5}$/.test(proof.code||''))
+      return res.status(409).json({error:'Complete your review before claiming a code.'});
+    const hash=crypto.createHash('sha256').update(jobId).digest('hex');
+    const result=await bgRedis('EVAL',TC_PROOF_BIND_SCRIPT,2,key,tcProofCodeKey(proof.code),jobId,proof.code,hash,normalized,Date.now());
+    if(result?.[0]==='ok'){
+      return res.json({ok:true,code:result[1]});
+    }
+    if(result?.[0]==='bound')return res.status(409).json({error:'This code is already linked to another email. Contact the researchers if you entered the wrong address.'});
+    return res.status(409).json({error:'Verification is incomplete or expired. Generate and review a new set.'});
+  }catch{return res.status(503).json({error:'Verification temporarily unavailable. Please retry.'});}
+});
+
 app.get(['/', '/index.html'], (req, res) => {
-  res.sendFile(path.join(__dirname, 'index.html'));
+
+  const fs = require('fs');
+  const publicHome = path.join(__dirname, 'public', 'index.html');
+  const rootHome = path.join(__dirname, 'index.html');
+  const home = fs.existsSync(publicHome) ? publicHome : rootHome;
+  if (fs.existsSync(home)) return res.sendFile(home);
+  return res.status(404).json({error:'Frontend not found. Put index.html in public/.'});
 });
 app.use('/assets', express.static(path.join(__dirname, 'assets'), { dotfiles: 'deny' }));
 app.use((req, res) => res.status(404).json({ error: 'Not found.' }));
 
-if (require.main === module) {
+if (require.main === module && !process.env.VERCEL) {
   if (process.argv.includes('--worker')) {
     if (!BG_CONFIGURED) {
       console.error('Worker requires UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN.');
@@ -807,11 +1095,14 @@ if (require.main === module) {
     app.listen(PORT, () => {
       console.log(`TraceCard AI running at http://localhost:${PORT}`);
       console.log('Configured AI providers:', PROVIDERS.filter(p => p.key).map(p => p.id).join(' -> ') || 'none');
-      bgStartWorker(); // Also works in a single service; free tiers may sleep while idle.
+      bgStartWorker(); 
     });
   }
 }
 
-module.exports = { app, parseFlashcards, extractGeminiText, generateFlashcards, buildResponseSchema, requestedCardType };
-
-if (process.env.NODE_ENV === 'test') module.exports.__test = {bgTick, bgGet, bgValidateRequest, bgRunOneJob};
+module.exports = app;
+Object.assign(module.exports, {
+  app, parseFlashcards, extractGeminiText,
+  generateFlashcards, buildResponseSchema, requestedCardType,
+});
+if (process.env.NODE_ENV === 'test') module.exports.__test = {bgTick, bgGet, bgValidateRequest, bgRunOneJob, bgBadQuestion, bgVerifyCard, sourceExcerptOnPage, bgRetryLimitReached, bgRunVercelWindow};
